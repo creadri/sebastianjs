@@ -62,21 +62,12 @@ sebastianjs input.mmd -o output.svg -t dark \
 
 ## Demos
 
-Prebuilt comparison demos live under the `demos/` folder (left: SebastianJS SVG, right: Mermaid code rendered by the browser):
+Prebuilt comparison demos are located in the github pages: https://creadri.github.io/sebastianjs/
 
-- Folder: [demos/mermaid-demos/](./demos/mermaid-demos/)
-- Examples:
-    - [flowchart.md](./demos/mermaid-demos/flowchart.md)
-    - [sequence.md](./demos/mermaid-demos/sequence.md)
-    - [classchart.md](./demos/mermaid-demos/classchart.md)
-    - [er.md](./demos/mermaid-demos/er.md)
-    - [gantt.md](./demos/mermaid-demos/gantt.md)
-
-Regenerate locally from `samples/` after fetching Mermaid samples:
 
 ```bash
 npm run fetch:samples
-npm run generate:comparisons
+npm run build:site
 ```
 
 ## Roadmap
@@ -86,21 +77,27 @@ npm run generate:comparisons
 - [x] Make first render implementation with minimal DOM support for basic flowchart
 - [x] Make a tiny CLI
 - [x] Mermaid theme support
-- [ ] Extend render support by resolving test issues.
-    - [ ] graph
-    - [ ] flowchart
-    - [ ] sequenceDiagram
-    - [ ] classDiagram
-    - [ ] erDiagram
-    - [ ] gantt
-    - [ ] pie
-    - [ ] journey
-    - [ ] stateDiagram
-    - [ ] gitGraph
-    - [ ] quadrantChart
+- [ ] Fix positioning and sizing issues
 - [ ] Release First viable option
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 - [ ] Create a benchmark to assess the difference in performance compared to mermaid-cli
+
+## Current conditions
+
+| Diagram Name      | Mermaid Status | SebastianJS Status     |
+|-------------------|---------------|-------------------------|
+| graph             | Supported     | Not yet supported       |
+| flowchart         | Supported     | Not yet supported       |
+| sequenceDiagram   | Supported     | Not yet supported       |
+| classDiagram      | Supported     | Not yet supported       |
+| erDiagram         | Supported     | Not yet supported       |
+| gantt             | Supported     | Not yet supported       |
+| pie               | Supported     | Not yet supported       |
+| journey           | Supported     | Not yet supported       |
+| stateDiagram      | Supported     | Not yet supported       |
+| gitGraph          | Supported     | Not yet supported       |
+| quadrantChart     | Beta          | Not yet supported       |
+
 
 ## Licence
 
