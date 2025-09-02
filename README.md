@@ -98,6 +98,17 @@ npm run build:site
 | gitGraph          | Supported     | Not yet supported       |
 | quadrantChart     | Beta          | Not yet supported       |
 
+## Limitations and Dependencies
+
+Note on accuracy
+- SebastianJS requires node-canvas for accurate, browserless text measurement (no headless browser). Ensure the canvas package is installed and system libraries are present.
+
+Fonts
+- Don’t hardcode system font paths in code. Provide fonts one of these ways:
+    - At call time: render(def, { fonts: [{ path: '/path/YourFont.ttf', family: 'Your Font', weight: '400', style: 'normal' }] })
+    - Environment variables:
+        - SEBASTIANJS_FONT_PATH and SEBASTIANJS_FONT_FAMILY (optional: SEBASTIANJS_FONT_WEIGHT, SEBASTIANJS_FONT_STYLE)
+    - Default font family used for measurement can be set via options.themeVariables.fontFamily or SEBASTIANJS_DEFAULT_FONT_FAMILY.
 
 ## Licence
 
