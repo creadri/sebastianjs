@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+// Tiny CLI for SebastianJS: render Mermaid to SVG
+// Usage:
+//   sebastianjs [input.mmd|-] [-o output.svg]
+
+import { readFile, writeFile } from 'node:fs/promises';
+import { stdin as input } from 'node:process';
+import { render } from '../src/index.js';
+
+function parseArgs(argv) {
+  const args = { input: null, output: null };
+  const rest = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '-o' || a === '--output') {
+      args.output = argv[++i];
+    } else if (a === '-h' || a === '--help') {
+      args.help = true;
+    } else {
+      rest.push(a);
+    }
+  }
+  if (rest.length > 0) args.input = rest[0];
+  return args;
+}
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of input) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg]');
+    process.exit(0);
+  }
+
+  let def;
+  try {
+    if (args.input && args.input !== '-') {
+      def = await readFile(args.input, 'utf8');
+    } else {
+      def = await readStdin();
+    }
+    if (!def || !def.trim()) {
+      console.error('No Mermaid definition provided.');
+      process.exit(2);
+    }
+  } catch (err) {
+    console.error('Failed to read input:', err.message || err);
+    process.exit(1);
+  }
+
+  try {
+    const svg = await render(def);
+    if (args.output) {
+      await writeFile(args.output, svg, 'utf8');
+    } else {
+      process.stdout.write(svg);
+    }
+  } catch (err) {
+    console.error('Render failed:', err?.stack || err?.message || String(err));
+    process.exit(1);
+  }
+}
+
+main();
