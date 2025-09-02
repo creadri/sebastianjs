@@ -22,6 +22,7 @@ Focus is made on implementing SVG exports.
 - [ ] Extend render support by resolving test issues.
     - [ ] Flowchart
 - [ ] Release First viable option
+- [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 
 ## Licence
 

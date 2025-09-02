@@ -1,0 +1,13 @@
+flowchart LR
+    A[redtext] -->|redtext| B(bluetext)
+    C[/redtext/] -->|bluetext| D{bluetext}
+    E{{defaultstyle}} -->|defaultstyle| F([defaultstyle])
+    linkStyle default color:Sienna;
+    linkStyle 0 color:red;
+    linkStyle 1 stroke:DarkGray,stroke-width:2px,color:#0000ff
+    style A color:red;
+    style B color:blue;
+    style C stroke:#ff0000,fill:#ffcccc,color:#ff0000
+    style D stroke:#0000ff,fill:#ccccff,color:#0000ff
+    click B "flowchart.html#link-clicked" "link test"
+    click D testClick "click test"
