@@ -81,9 +81,19 @@ export async function render(definition, options = {}) {
         const m = ctx.measureText(text || '');
         return m.width || 0;
       };
+      const extractLines = (el) => {
+        // Prefer mermaid's line tspans when present
+        const tspans = el.querySelectorAll ? el.querySelectorAll('tspan.text-outer-tspan') : [];
+        if (tspans && tspans.length > 0) {
+          return Array.from(tspans, t => (t.textContent || ''));
+        }
+        // Fallback: split on explicit newlines
+        return (el.textContent || '').split('\n');
+      };
+
       const measureTextBlock = (el) => {
         const size = setCtxFont(el);
-        const lines = (el.textContent || '').split('\n');
+        const lines = extractLines(el);
         let width = 0;
         for (const ln of lines) width = Math.max(width, ctx.measureText(ln).width || 0);
         // Approximate height using font metrics if available; fallback to 1.2*size
@@ -96,15 +106,34 @@ export async function render(definition, options = {}) {
       };
 
       const getBBoxCanvas = function () {
-        if (String(this.tagName).toLowerCase() === 'text') {
+        const tag = String(this.tagName || '').toLowerCase();
+        if (tag === 'text' || tag === 'tspan') {
           const { width, height } = measureTextBlock(this);
-          // Add a small padding similar to browsers' tight bboxes
           return { x: 0, y: 0, width: width + 2, height: height + 2 };
         }
-        // Fallback minimal bbox for non-text nodes; Mermaid mainly queries text
-        const w = parseFloat(this.getAttribute?.('width') || '0');
-        const h = parseFloat(this.getAttribute?.('height') || '0');
-        return { x: 0, y: 0, width: isFinite(w) ? w : 0, height: isFinite(h) ? h : 0 };
+        // If element has width/height, use those
+        const wAttr = parseFloat(this.getAttribute?.('width') || 'NaN');
+        const hAttr = parseFloat(this.getAttribute?.('height') || 'NaN');
+        if (Number.isFinite(wAttr) && Number.isFinite(hAttr)) {
+          return { x: 0, y: 0, width: wAttr, height: hAttr };
+        }
+        // Otherwise, union of children bboxes (common for <g> labels)
+        if (this.children && this.children.length) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const child of this.children) {
+            if (typeof child.getBBox === 'function') {
+              const b = child.getBBox();
+              minX = Math.min(minX, b.x);
+              minY = Math.min(minY, b.y);
+              maxX = Math.max(maxX, b.x + b.width);
+              maxY = Math.max(maxY, b.y + b.height);
+            }
+          }
+          if (isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY)) {
+            return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
+          }
+        }
+        return { x: 0, y: 0, width: 0, height: 0 };
       };
       const getComputedTextLengthCanvas = function () {
         return measureTextWidth(this, this.textContent || '');
@@ -175,7 +204,40 @@ export async function render(definition, options = {}) {
   // Use an explicit container inside body
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const result = await mermaid.render('graph', definition, container);
+  let result;
+  try {
+    result = await mermaid.render('graph', definition, container);
+  } catch (err) {
+    const msg = (err?.message || '').toString();
+    // Fallback for edge label placement errors on complex flowcharts
+    if (msg.includes('suitable point for the given distance')) {
+      try {
+        // Re-initialize with a simpler curve and extra spacing to avoid degenerate paths
+        mermaid.initialize({
+          ...initConfig,
+          flowchart: {
+            ...(initConfig.flowchart || {}),
+            curve: 'linear',
+            nodeSpacing: 60,
+            rankSpacing: 60,
+            padding: 12,
+          },
+        });
+        result = await mermaid.render('graph', definition, container);
+      } catch (err2) {
+        // Final fallback: strip edge labels (|label|) to avoid label positioning
+        try {
+          const defNoEdgeLabels = String(definition).replace(/\|[^|]*\|/g, '');
+          mermaid.initialize(initConfig);
+          result = await mermaid.render('graph', defNoEdgeLabels, container);
+        } catch (err3) {
+          throw err3;
+        }
+      }
+    } else {
+      throw err;
+    }
+  }
   const svg = result?.svg || container.innerHTML || '';
 
   // Cleanup
