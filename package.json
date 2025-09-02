@@ -8,7 +8,8 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "cli": "node --experimental-loader ./loader.mjs ./bin/sebastianjs",
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
-  "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand"
+  "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand",
+  "generate:comparisons": "node --experimental-loader ./loader.mjs ./scripts/generate-comparisons.mjs"
   },
   "keywords": [
     "mermaid",
@@ -21,8 +22,8 @@
     "sebastianjs": "bin/sebastianjs"
   },
   "dependencies": {
-    "@svgdotjs/svg.js": "^3.2.4",
-    "dompurify": "^3.2.6",
+    "@svgdotjs/svg.js": ">=3.2.4",
+    "dompurify": ">=3.2.6",
     "jsdom": ">=24.1.0",
     "mermaid": ">=10.11.10",
     "svgdom": ">=0.1.22"
