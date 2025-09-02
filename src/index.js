@@ -1,4 +1,3 @@
-import mermaid from 'mermaid';
 import { JSDOM } from 'jsdom';
 
 export async function render(definition, options = {}) {
@@ -44,20 +43,31 @@ export async function render(definition, options = {}) {
   ensureProto(window.SVGElement, 'getComputedTextLength', getComputedTextLengthStub);
 
   // Prepare DOMPurify for Mermaid; support both factory and object default export
-  try {
-    const mod = await import('dompurify');
-    const dp = mod?.default ?? mod;
-    const inst = typeof dp === 'function' ? dp(window) : dp;
-    // Normalize shape: ensure sanitize function and hooks exist
-    if (typeof inst === 'function') {
-      inst.sanitize = inst.sanitize || inst; // function can be the sanitizer itself
+  async function ensureDomPurify(win) {
+    const shim = () => {
+      const purify = (html) => html;
+      purify.sanitize = (html) => html;
+      purify.addHook = () => {};
+      purify.removeHook = () => {};
+      return purify;
+    };
+    try {
+      const mod = await import('dompurify');
+      const dp = mod?.default ?? mod;
+      const inst = typeof dp === 'function' ? dp(win) : dp;
+      if (typeof inst === 'function' && !inst.sanitize) inst.sanitize = inst;
+      if (!inst || typeof inst.sanitize !== 'function') return shim();
+      if (!inst.addHook) inst.addHook = () => {};
+      if (!inst.removeHook) inst.removeHook = () => {};
+      return inst;
+    } catch (_) {
+      return shim();
     }
-    if (!inst.addHook) inst.addHook = () => {};
-    if (!inst.removeHook) inst.removeHook = () => {};
-    window.DOMPurify = inst;
-  } catch (_) {
-    // optional
   }
+  window.DOMPurify = await ensureDomPurify(window);
+
+  // Import mermaid only after environment is ready
+  const { default: mermaid } = await import('mermaid');
 
   const initConfig = {
     startOnLoad: false,

@@ -4,7 +4,7 @@
 
 **SebastianJS (SVG):**
 
-> Render failed: ReferenceError: screen is not defined
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 
@@ -61,7 +61,7 @@ C4Context
 
 **SebastianJS (SVG):**
 
-> Render failed: ReferenceError: screen is not defined
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 
@@ -108,7 +108,7 @@ C4Container
 
 **SebastianJS (SVG):**
 
-> Render failed: ReferenceError: screen is not defined
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 
@@ -155,7 +155,7 @@ C4Component
 
 **SebastianJS (SVG):**
 
-> Render failed: ReferenceError: screen is not defined
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 
@@ -182,7 +182,7 @@ C4Dynamic
 
 **SebastianJS (SVG):**
 
-> Render failed: ReferenceError: screen is not defined
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 

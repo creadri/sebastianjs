@@ -6,10 +6,10 @@
   "main": "src/index.js",
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
-    "cli": "node --experimental-loader ./loader.mjs ./bin/sebastianjs",
+  "cli": "node ./bin/sebastianjs",
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
   "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand",
-  "generate:comparisons": "node --experimental-loader ./loader.mjs ./scripts/generate-comparisons.mjs"
+  "generate:comparisons": "node ./scripts/generate-comparisons.mjs"
   },
   "keywords": [
     "mermaid",
@@ -20,6 +20,23 @@
   "license": "MIT",
   "bin": {
     "sebastianjs": "bin/sebastianjs"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/creadri/sebastianjs.git"
+  },
+  "homepage": "https://github.com/creadri/sebastianjs#readme",
+  "bugs": {
+    "url": "https://github.com/creadri/sebastianjs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@svgdotjs/svg.js": ">=3.2.4",
@@ -46,7 +63,7 @@
       "__tests__/samples.test.js"
     ],
     "moduleNameMapper": {
-      "^dompurify$": "<rootDir>/test/dompurify-stub.js"
+      "^dompurify$": "<rootDir>/src/shims/dompurify.js"
     }
   }
 }

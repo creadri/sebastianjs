@@ -9,11 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'sebastianjs');
-const LOADER = path.join(ROOT, 'loader.mjs');
 
 function runCLI(args = [], input = null, opts = {}) {
   return new Promise((resolve) => {
-    const proc = spawn('node', ['--experimental-loader', LOADER, CLI, ...args], {
+  const proc = spawn('node', [CLI, ...args], {
       cwd: ROOT,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'],

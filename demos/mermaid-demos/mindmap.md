@@ -4,7 +4,7 @@
 
 **SebastianJS (SVG):**
 
-> Render failed: Error: Could not create canvas of type 2d
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 
@@ -29,7 +29,7 @@ mindmap
 
 **SebastianJS (SVG):**
 
-> Render failed: Error: Could not create canvas of type 2d
+> Render failed: TypeError: DOMPurify.sanitize is not a function
 
 **Mermaid Code (Browser Rendered):**
 

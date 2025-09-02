@@ -5,6 +5,6 @@ module.exports = {
   transformIgnorePatterns: [],
   testPathIgnorePatterns: [],
   moduleNameMapper: {
-    '^dompurify$': '<rootDir>/test/dompurify-stub.js',
+    '^dompurify$': '<rootDir>/src/shims/dompurify.js',
   },
 };
