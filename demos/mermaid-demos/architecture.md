@@ -4,7 +4,7 @@
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -28,7 +28,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -58,7 +58,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -71,7 +71,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -93,7 +93,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -120,7 +120,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -147,7 +147,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -175,7 +175,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -202,7 +202,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -229,7 +229,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -255,7 +255,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
@@ -286,7 +286,7 @@ architecture-beta
 
 **SebastianJS (SVG):**
 
-> Render failed: TypeError: DOMPurify.sanitize is not a function
+> Render failed: Error: Could not create canvas of type 2d
 
 **Mermaid Code (Browser Rendered):**
 
