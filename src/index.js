@@ -60,7 +60,7 @@ export async function render(definition, options = {}) {
       const defaultFontSize = 16;
       const defaultFamily = (options?.themeVariables?.fontFamily)
         || process.env.SEBASTIANJS_DEFAULT_FONT_FAMILY
-        || 'Arial, Helvetica, sans-serif';
+        || '"trebuchet ms", Verdana, Arial, sans-serif';
       const getFontSize = (el) => {
         const v = el?.getAttribute?.('font-size') || el?.style?.fontSize || defaultFontSize;
         const n = parseFloat(String(v));
@@ -201,8 +201,9 @@ function normalizeViewBox(svgString, margin = 4) {
   const svg = doc.documentElement;
   if (!svg || svg.tagName.toLowerCase() !== 'svg') return svgString;
 
-  const rects = Array.from(svg.querySelectorAll('rect'));
-  if (rects.length === 0) return svgString;
+  // Consider common node shapes for bounds
+  const shapes = Array.from(svg.querySelectorAll('rect, circle, ellipse, polygon, polyline'));
+  if (shapes.length === 0) return svgString;
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -221,6 +222,9 @@ function normalizeViewBox(svgString, margin = 4) {
 
   const getAbsOffset = (el) => {
     let tx = 0, ty = 0;
+    // include element's own translate first
+    const selfT = parseTranslate(el.getAttribute('transform'));
+    tx += selfT.x; ty += selfT.y;
     let cur = el.parentElement;
     while (cur && cur !== svg) {
       const t = parseTranslate(cur.getAttribute('transform'));
@@ -230,16 +234,58 @@ function normalizeViewBox(svgString, margin = 4) {
     return { x: tx, y: ty };
   };
 
-  for (const r of rects) {
-    const x = parseFloat(r.getAttribute('x') || '0');
-    const y = parseFloat(r.getAttribute('y') || '0');
-    const w = parseFloat(r.getAttribute('width') || '0');
-    const h = parseFloat(r.getAttribute('height') || '0');
-    const o = getAbsOffset(r);
+  const clampFinite = (n) => (Number.isFinite(n) ? n : 0);
+  const includeRect = (el) => {
+    const x = parseFloat(el.getAttribute('x') || '0');
+    const y = parseFloat(el.getAttribute('y') || '0');
+    const w = parseFloat(el.getAttribute('width') || '0');
+    const h = parseFloat(el.getAttribute('height') || '0');
+    const o = getAbsOffset(el);
     minX = Math.min(minX, x + o.x);
     minY = Math.min(minY, y + o.y);
     maxX = Math.max(maxX, x + w + o.x);
     maxY = Math.max(maxY, y + h + o.y);
+  };
+  const includeCircle = (el) => {
+    const cx = parseFloat(el.getAttribute('cx') || '0');
+    const cy = parseFloat(el.getAttribute('cy') || '0');
+    const r = parseFloat(el.getAttribute('r') || '0');
+    const o = getAbsOffset(el);
+    minX = Math.min(minX, cx - r + o.x);
+    minY = Math.min(minY, cy - r + o.y);
+    maxX = Math.max(maxX, cx + r + o.x);
+    maxY = Math.max(maxY, cy + r + o.y);
+  };
+  const includeEllipse = (el) => {
+    const cx = parseFloat(el.getAttribute('cx') || '0');
+    const cy = parseFloat(el.getAttribute('cy') || '0');
+    const rx = parseFloat(el.getAttribute('rx') || '0');
+    const ry = parseFloat(el.getAttribute('ry') || '0');
+    const o = getAbsOffset(el);
+    minX = Math.min(minX, cx - rx + o.x);
+    minY = Math.min(minY, cy - ry + o.y);
+    maxX = Math.max(maxX, cx + rx + o.x);
+    maxY = Math.max(maxY, cy + ry + o.y);
+  };
+  const includePoints = (el) => {
+    const raw = el.getAttribute('points') || '';
+    const pts = raw.trim().split(/\s+/).map(p => p.split(/[,\s]+/).map(Number)).filter(a => a.length >= 2 && a.every(n => Number.isFinite(n)));
+    if (pts.length === 0) return;
+    const o = getAbsOffset(el);
+    for (const [px, py] of pts) {
+      minX = Math.min(minX, clampFinite(px + o.x));
+      minY = Math.min(minY, clampFinite(py + o.y));
+      maxX = Math.max(maxX, clampFinite(px + o.x));
+      maxY = Math.max(maxY, clampFinite(py + o.y));
+    }
+  };
+
+  for (const el of shapes) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'rect') includeRect(el);
+    else if (tag === 'circle') includeCircle(el);
+    else if (tag === 'ellipse') includeEllipse(el);
+    else if (tag === 'polygon' || tag === 'polyline') includePoints(el);
   }
 
   if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
@@ -252,9 +298,10 @@ function normalizeViewBox(svgString, margin = 4) {
   const vbH = Math.ceil((maxY - minY) + margin * 2) || 1;
 
   svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-  // Optional: drop extreme style max-width or width attributes to let viewBox drive layout
+  // Optional: drop extreme style max-width/width/height to let viewBox drive layout
   svg.removeAttribute('width');
   svg.removeAttribute('height');
+  svg.removeAttribute('style');
 
   return svg.outerHTML;
 }

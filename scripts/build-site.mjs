@@ -100,7 +100,7 @@ async function main() {
       // Render SVG and save as asset
       let assetRel = '';
       try {
-        const svg = await render(it.def, { normalizeViewBox: true, viewBoxMargin: 4 });
+        const svg = await render(it.def, { normalizeViewBox: true });
         const assetName = `${group}-${n}.svg`;
         const assetPath = join(ASSETS_DIR, assetName);
         await writeFile(assetPath, svg, 'utf8');
@@ -120,7 +120,12 @@ async function main() {
   console.log(`Site build complete: ${groups.size} groups -> ${OUT_DIR}`);
 }
 
-main().catch((e) => {
-  console.error('Site build failed:', e?.stack || e?.message || String(e));
-  process.exit(1);
-});
+main()
+  .then(() => {
+    // Some libraries may leave timers/handles open; force a clean exit once IO is flushed.
+    setImmediate(() => process.exit(0));
+  })
+  .catch((e) => {
+    console.error('Site build failed:', e?.stack || e?.message || String(e));
+    process.exit(1);
+  });
