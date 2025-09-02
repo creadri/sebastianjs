@@ -18,6 +18,7 @@ Focus is made on implementing SVG exports.
 - [x] Implement tests for all known mermaidjs diagrams (excluding beta ones)
 - [x] Make first render implementation with minimal DOM support for basic flowchart
 - [x] Make a tiny CLI
+- [x] Mermaid theme support
 - [ ] Extend render support by resolving test issues.
     - [ ] Flowchart
 - [ ] Release First viable option

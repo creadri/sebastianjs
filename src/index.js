@@ -1,7 +1,7 @@
 import mermaid from 'mermaid';
 import { JSDOM } from 'jsdom';
 
-export async function render(definition) {
+export async function render(definition, options = {}) {
   // Create an HTML window/document with jsdom
   const { window } = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const { document } = window;
@@ -59,12 +59,16 @@ export async function render(definition) {
     // optional
   }
 
-  mermaid.initialize({
+  const initConfig = {
     startOnLoad: false,
     securityLevel: 'loose',
     htmlLabels: false,
     flowchart: { htmlLabels: false },
-  });
+  };
+  if (options && options.theme) initConfig.theme = options.theme;
+  if (options && options.themeVariables) initConfig.themeVariables = options.themeVariables;
+  if (options && options.themeCSS) initConfig.themeCSS = options.themeCSS;
+  mermaid.initialize(initConfig);
 
   // Use an explicit container inside body
   const container = document.createElement('div');
@@ -76,5 +80,79 @@ export async function render(definition) {
   delete global.window;
   delete global.document;
 
+  // Optional: normalize viewBox post-process
+  if (options.normalizeViewBox) {
+    try {
+      return normalizeViewBox(svg, options.viewBoxMargin ?? 4);
+    } catch (e) {
+      // Fallback to raw svg on failure
+    }
+  }
   return svg;
+}
+
+// Parse SVG and compute a union bbox of visible rect nodes, accounting for simple translate() transforms on ancestor groups.
+function normalizeViewBox(svgString, margin = 4) {
+  // jsdom can parse XML with image/svg+xml
+  const dom = new JSDOM(svgString, { contentType: 'image/svg+xml' });
+  const doc = dom.window.document;
+  const svg = doc.documentElement;
+  if (!svg || svg.tagName.toLowerCase() !== 'svg') return svgString;
+
+  const rects = Array.from(svg.querySelectorAll('rect'));
+  if (rects.length === 0) return svgString;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  const parseTranslate = (transform) => {
+    let x = 0, y = 0;
+    if (!transform) return { x, y };
+    // handle translate(x,y) or translate(x)
+    const m = /translate\(([^)]+)\)/.exec(transform);
+    if (m) {
+      const parts = m[1].split(/[,\s]+/).map(Number).filter(n => !Number.isNaN(n));
+      if (parts.length >= 1) x += parts[0];
+      if (parts.length >= 2) y += parts[1];
+    }
+    return { x, y };
+  };
+
+  const getAbsOffset = (el) => {
+    let tx = 0, ty = 0;
+    let cur = el.parentElement;
+    while (cur && cur !== svg) {
+      const t = parseTranslate(cur.getAttribute('transform'));
+      tx += t.x; ty += t.y;
+      cur = cur.parentElement;
+    }
+    return { x: tx, y: ty };
+  };
+
+  for (const r of rects) {
+    const x = parseFloat(r.getAttribute('x') || '0');
+    const y = parseFloat(r.getAttribute('y') || '0');
+    const w = parseFloat(r.getAttribute('width') || '0');
+    const h = parseFloat(r.getAttribute('height') || '0');
+    const o = getAbsOffset(r);
+    minX = Math.min(minX, x + o.x);
+    minY = Math.min(minY, y + o.y);
+    maxX = Math.max(maxX, x + w + o.x);
+    maxY = Math.max(maxY, y + h + o.y);
+  }
+
+  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+    return svgString;
+  }
+
+  const vbX = Math.floor(minX - margin);
+  const vbY = Math.floor(minY - margin);
+  const vbW = Math.ceil((maxX - minX) + margin * 2) || 1;
+  const vbH = Math.ceil((maxY - minY) + margin * 2) || 1;
+
+  svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+  // Optional: drop extreme style max-width or width attributes to let viewBox drive layout
+  svg.removeAttribute('width');
+  svg.removeAttribute('height');
+
+  return svg.outerHTML;
 }

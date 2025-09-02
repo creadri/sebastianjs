@@ -8,12 +8,23 @@ import { stdin as input } from 'node:process';
 import { render } from '../src/index.js';
 
 function parseArgs(argv) {
-  const args = { input: null, output: null };
+  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, normalizeViewBox: true, viewBoxMargin: 4 };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--output') {
       args.output = argv[++i];
+    } else if (a === '-t' || a === '--theme') {
+      args.theme = argv[++i];
+    } else if (a === '--theme-css') {
+      args.themeCSS = argv[++i];
+    } else if (a === '--theme-vars' || a === '--theme-variables') {
+      const v = argv[++i];
+      try { args.themeVariables = JSON.parse(v); } catch { args.themeVariables = null; }
+    } else if (a === '--normalize-viewbox') {
+      args.normalizeViewBox = true;
+    } else if (a === '--viewbox-margin') {
+      args.viewBoxMargin = Number(argv[++i]);
     } else if (a === '-h' || a === '--help') {
       args.help = true;
     } else {
@@ -33,7 +44,7 @@ async function readStdin() {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg]');
+  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [--normalize-viewbox] [--viewbox-margin N]');
     process.exit(0);
   }
 
@@ -54,7 +65,13 @@ async function main() {
   }
 
   try {
-    const svg = await render(def);
+    const svg = await render(def, {
+      theme: args.theme || undefined,
+      themeCSS: args.themeCSS || undefined,
+      themeVariables: args.themeVariables || undefined,
+      normalizeViewBox: args.normalizeViewBox,
+      viewBoxMargin: args.viewBoxMargin,
+    });
     if (args.output) {
       await writeFile(args.output, svg, 'utf8');
     } else {
