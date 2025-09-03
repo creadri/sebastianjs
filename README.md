@@ -82,33 +82,15 @@ npm run build:site
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 - [ ] Create a benchmark to assess the difference in performance compared to mermaid-cli
 
-## Current conditions
 
-| Diagram Name      | Mermaid Status | SebastianJS Status     |
-|-------------------|---------------|-------------------------|
-| graph             | Supported     | Not yet supported       |
-| flowchart         | Supported     | Not yet supported       |
-| sequenceDiagram   | Supported     | Not yet supported       |
-| classDiagram      | Supported     | Not yet supported       |
-| erDiagram         | Supported     | Not yet supported       |
-| gantt             | Supported     | Not yet supported       |
-| pie               | Supported     | Not yet supported       |
-| journey           | Supported     | Not yet supported       |
-| stateDiagram      | Supported     | Not yet supported       |
-| gitGraph          | Supported     | Not yet supported       |
-| quadrantChart     | Beta          | Not yet supported       |
-
-## Limitations and Dependencies
+## Limitations
 
 Note on accuracy
-- SebastianJS requires node-canvas for accurate, browserless text measurement (no headless browser). Ensure the canvas package is installed and system libraries are present.
+: SebastianJS requires node-canvas for accurate, browserless text measurement (no headless browser).
 
-Fonts
-- Don’t hardcode system font paths in code. Provide fonts one of these ways:
-    - At call time: render(def, { fonts: [{ path: '/path/YourFont.ttf', family: 'Your Font', weight: '400', style: 'normal' }] })
-    - Environment variables:
-        - SEBASTIANJS_FONT_PATH and SEBASTIANJS_FONT_FAMILY (optional: SEBASTIANJS_FONT_WEIGHT, SEBASTIANJS_FONT_STYLE)
-    - Default font family used for measurement can be set via options.themeVariables.fontFamily or SEBASTIANJS_DEFAULT_FONT_FAMILY.
+## Dependencies
+
+Canvas package is required.
 
 ## Licence
 
