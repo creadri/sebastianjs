@@ -95,3 +95,6 @@ Canvas package is required.
 ## Licence
 
 [MIT License](./LICENSE)
+
+Demo files where taken from mermaid-js/mermaid repository
+: [Mermaid MIT License](https://github.com/mermaid-js/mermaid?tab=MIT-1-ov-file)
