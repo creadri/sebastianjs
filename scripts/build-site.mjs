@@ -105,7 +105,7 @@ async function main() {
         const assetPath = join(ASSETS_DIR, assetName);
         await writeFile(assetPath, svg, 'utf8');
         assetRel = join('..', 'assets', assetName).replace(/\\/g,'/');
-        body += `\n<div class="grid">\n  <div><strong>SebastianJS (SVG)</strong><br/><img src="${assetRel}" alt="${escapeHtml(group)} ${n}"/></div>\n  <div><strong>Mermaid (code)</strong>\n\n<pre class="mermaid">${escapeHtml(it.def)}</pre>\n  </div>\n</div>\n`;
+        body += `\n<div class="grid">\n  <div><strong>SebastianJS (SVG)</strong><br/><a href="${assetRel}" alt="${escapeHtml(group)}">${assetRel}</a></div>\n  <div><strong>Mermaid (code)</strong>\n\n<pre class="mermaid">${escapeHtml(it.def)}</pre>\n  </div>\n</div>\n`;
       } catch (e) {
         const msg = (e?.message || String(e));
         body += `\n<div class="grid">\n  <div><strong>SebastianJS (SVG)</strong><br/><pre class="code">Render failed: ${escapeHtml(msg)}</pre></div>\n  <div><strong>Mermaid (code)</strong>\n\n<pre class="mermaid">${escapeHtml(it.def)}</pre>\n  </div>\n</div>\n`;
