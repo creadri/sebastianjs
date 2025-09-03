@@ -1,16 +1,16 @@
 {
   "name": "sebastianjs",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "SebastianJS is a mermaid wrapper designed to make it able to perform server-side svg renderers without needing a headless browser.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
-  "cli": "node ./bin/sebastianjs",
+    "cli": "node ./bin/sebastianjs",
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
-  "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand",
-  "generate:comparisons": "node ./scripts/generate-comparisons.mjs",
-  "build:site": "node ./scripts/build-site.mjs"
+    "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand",
+    "generate:comparisons": "node ./scripts/generate-comparisons.mjs",
+    "build:site": "node ./scripts/build-site.mjs"
   },
   "keywords": [
     "mermaid",
