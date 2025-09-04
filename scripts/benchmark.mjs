@@ -70,9 +70,9 @@ function formatNumber(n) { return n.toFixed(2); }
 
 function buildMermaidPie(seb, mmdc) {
   if (!mmdc) {
-    return `pie title Average Render Time (ms)\n  \"sebastianjs\" : ${formatNumber(seb.avg)}\n  \"mermaid-cli (missing)\" : 0`;
+    return `xychart\n  title "Average Render Time (ms)"\n  x-axis [sebastianjs,mermaid-cli]\n  y-axis "miliseconds" 20000 --> 100000\n  bar [${formatNumber(seb.avg)}, 0]`;
   }
-  return `pie title Average Render Time (ms)\n  \"sebastianjs\" : ${formatNumber(seb.avg)}\n  \"mermaid-cli\" : ${formatNumber(mmdc.avg)}`;
+  return `xychart\n  title "Average Render Time (ms)"\n  x-axis [sebastianjs,mermaid-cli]\n  y-axis "miliseconds" 20000 --> 100000\n  bar [${formatNumber(seb.avg)}, ${formatNumber(mmdc.avg)}`;
 }
 
 function buildTable(seb, mmdc) {

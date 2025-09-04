@@ -129,9 +129,10 @@ Rendering all sample diagrams (count: 228).
 
 
 ```mermaid
-pie title Average Render Time (ms)
-  "sebastianjs" : 93.97
-  "mermaid-cli (missing)" : 0
+xychart
+  title Average Render Time (ms)
+  x-axis [sebastianjs, mermaid-cli]
+  bar 93.97, 0
 ```
 
 <!-- BENCHMARK_END -->
