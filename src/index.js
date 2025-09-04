@@ -264,6 +264,9 @@ export async function render(definition, options = {}) {
   };
 
   // Cleanup
+  if (window && typeof window.close === 'function') {
+    try { window.close(); } catch (_) {}
+  }
   delete global.window;
   delete global.document;
 

@@ -10,7 +10,8 @@
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
     "test:samples": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./jest.samples.config.cjs __tests__/samples.test.js --runInBand",
     "generate:comparisons": "node ./scripts/generate-comparisons.mjs",
-    "build:site": "node ./scripts/build-site.mjs"
+  "build:site": "node ./scripts/build-site.mjs",
+  "benchmark": "node ./scripts/benchmark.mjs"
   },
   "keywords": [
     "mermaid",

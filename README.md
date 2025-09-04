@@ -103,3 +103,35 @@ Canvas package is required.
 
 Demo files where taken from mermaid-js/mermaid repository
 : [Mermaid MIT License](https://github.com/mermaid-js/mermaid?tab=MIT-1-ov-file)
+
+<!-- BENCHMARK_START -->
+## Benchmark
+
+_Last updated: 2025-09-04T11:12:55.857Z_
+
+Rendering all sample diagrams (count: 228).
+
+**Note:** mermaid-cli (mmdc) not found in PATH; its results are omitted.
+
+### Summary Table
+
+| Metric | sebastianjs | mermaid-cli |
+| --- | --- | --- |
+| Samples | 228 | — |
+| Successful | 199 | — |
+| Avg ms | 93.97 | — |
+| Total ms | 21426.00 | — |
+| Min ms | 6.00 | — |
+| Max ms | 1751.00 | — |
+
+### Mermaid Graph
+
+
+
+```mermaid
+pie title Average Render Time (ms)
+  "sebastianjs" : 93.97
+  "mermaid-cli (missing)" : 0
+```
+
+<!-- BENCHMARK_END -->
