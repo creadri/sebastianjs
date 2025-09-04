@@ -100,7 +100,7 @@ async function main() {
       // Render SVG and save as asset
       let assetRel = '';
       try {
-        const svg = await render(it.def, { normalizeViewBox: true });
+        const svg = await render(it.def, { normalizeViewBox: true, autoSize: true });
         const assetName = `${group}-${n}.svg`;
         const assetPath = join(ASSETS_DIR, assetName);
         await writeFile(assetPath, svg, 'utf8');

@@ -8,7 +8,7 @@ import { stdin as input } from 'node:process';
 import { render } from '../src/index.js';
 
 function parseArgs(argv) {
-  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, normalizeViewBox: true, viewBoxMargin: 4 };
+  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, normalizeViewBox: true, viewBoxMargin: 4, width: null, height: null, autoSize: false, maxWidth: null, maxHeight: null };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -25,6 +25,16 @@ function parseArgs(argv) {
       args.normalizeViewBox = true;
     } else if (a === '--viewbox-margin') {
       args.viewBoxMargin = Number(argv[++i]);
+    } else if (a === '-W' || a === '--width') {
+      args.width = Number(argv[++i]);
+    } else if (a === '-H' || a === '--height') {
+      args.height = Number(argv[++i]);
+    } else if (a === '--auto-size') {
+      args.autoSize = true;
+    } else if (a === '--max-width') {
+      args.maxWidth = Number(argv[++i]);
+    } else if (a === '--max-height') {
+      args.maxHeight = Number(argv[++i]);
     } else if (a === '-h' || a === '--help') {
       args.help = true;
     } else {
@@ -44,7 +54,7 @@ async function readStdin() {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [--normalize-viewbox] [--viewbox-margin N]');
+  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [--normalize-viewbox] [--viewbox-margin N] [-W width] [-H height] [--auto-size] [--max-width N] [--max-height N]');
     process.exit(0);
   }
 
@@ -71,6 +81,11 @@ async function main() {
       themeVariables: args.themeVariables || undefined,
       normalizeViewBox: args.normalizeViewBox,
       viewBoxMargin: args.viewBoxMargin,
+      width: args.width || undefined,
+      height: args.height || undefined,
+  autoSize: args.autoSize,
+  maxWidth: args.maxWidth || undefined,
+  maxHeight: args.maxHeight || undefined,
     });
     if (args.output) {
       await writeFile(args.output, svg, 'utf8');

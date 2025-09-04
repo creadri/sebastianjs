@@ -39,6 +39,8 @@ const svg = await render(def, {
     themeCSS: '.node rect{ rx:4; ry:4 }',
     normalizeViewBox: true,
     viewBoxMargin: 6,
+    width: 1000,        // optional container / final svg width
+    height: 600,        // optional container / final svg height
 });
 
 // svg is a <svg …> string
@@ -58,6 +60,9 @@ sebastianjs input.mmd -o output.svg -t dark \
     --theme-vars '{"primaryColor":"#3366ff"}' \
     --theme-css '.node rect{rx:4;ry:4}' \
     --normalize-viewbox --viewbox-margin 6
+
+# Set explicit width / height (influences layout + final svg size)
+sebastianjs input.mmd -o out.svg -W 1200 -H 700 --normalize-viewbox
 ```
 
 ## Demos

@@ -1,6 +1,11 @@
 import { JSDOM } from 'jsdom';
 
 export async function render(definition, options = {}) {
+  // Extract layout-related sizing options (numeric or string). These affect
+  // only the output SVG attributes and (for some diagram types) internal
+  // layout when Mermaid inspects container dimensions.
+  const containerWidth = options.width || options.containerWidth;
+  const containerHeight = options.height || options.containerHeight;
   // Create an HTML window/document with jsdom
   const { window } = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const { document } = window;
@@ -57,7 +62,7 @@ export async function render(definition, options = {}) {
       const canvas = createCanvas(1, 1);
       const ctx = canvas.getContext('2d');
 
-      const defaultFontSize = 16;
+      const defaultFontSize = 12;
       const defaultFamily = (options?.themeVariables?.fontFamily)
         || process.env.SEBASTIANJS_DEFAULT_FONT_FAMILY
         || '"trebuchet ms", Verdana, Arial, sans-serif';
@@ -201,8 +206,10 @@ export async function render(definition, options = {}) {
   if (options && options.themeCSS) initConfig.themeCSS = options.themeCSS;
   mermaid.initialize(initConfig);
 
-  // Use an explicit container inside body
+  // Use an explicit container inside body. If width/height provided, apply as inline style
   const container = document.createElement('div');
+  if (containerWidth) container.style.width = (typeof containerWidth === 'number') ? `${containerWidth}px` : String(containerWidth);
+  if (containerHeight) container.style.height = (typeof containerHeight === 'number') ? `${containerHeight}px` : String(containerHeight);
   document.body.appendChild(container);
   let result;
   try {
@@ -238,7 +245,23 @@ export async function render(definition, options = {}) {
       throw err;
     }
   }
-  const svg = result?.svg || container.innerHTML || '';
+  let svg = result?.svg || container.innerHTML || '';
+
+  // If caller supplied width/height, enforce them on the root SVG *after* any
+  // optional viewBox normalization. We do this by mutating attributes, not by
+  // scaling content.
+  const applyExplicitSize = (raw) => {
+    if (!containerWidth && !containerHeight) return raw;
+    try {
+      const dom = new JSDOM(raw, { contentType: 'image/svg+xml' });
+      const root = dom.window.document.documentElement;
+      if (containerWidth) root.setAttribute('width', (typeof containerWidth === 'number') ? `${containerWidth}` : String(containerWidth));
+      if (containerHeight) root.setAttribute('height', (typeof containerHeight === 'number') ? `${containerHeight}` : String(containerHeight));
+      return root.outerHTML;
+    } catch (_) {
+      return raw; // best-effort
+    }
+  };
 
   // Cleanup
   delete global.window;
@@ -247,12 +270,50 @@ export async function render(definition, options = {}) {
   // Optional: normalize viewBox post-process
   if (options.normalizeViewBox) {
     try {
-      return normalizeViewBox(svg, options.viewBoxMargin ?? 4);
+      svg = normalizeViewBox(svg, options.viewBoxMargin ?? 4);
     } catch (e) {
       // Fallback to raw svg on failure
     }
   }
-  return svg;
+  // Auto-size logic: if caller did not specify explicit width/height but provided
+  // maxWidth/maxHeight (or autoSize flag), derive width/height from viewBox to
+  // fit within constraints while preserving aspect ratio.
+  const wantsAuto = (!containerWidth && !containerHeight) && (options.autoSize || options.maxWidth || options.maxHeight);
+  if (wantsAuto) {
+    try {
+      const dom = new JSDOM(svg, { contentType: 'image/svg+xml' });
+      const root = dom.window.document.documentElement;
+      const vb = root.getAttribute('viewBox');
+      if (vb) {
+        const parts = vb.split(/\s+/).map(Number);
+        if (parts.length === 4 && parts.every(n => Number.isFinite(n))) {
+          const [, , vbW, vbH] = parts;
+          let targetW = vbW;
+            let targetH = vbH;
+          const maxW = typeof options.maxWidth === 'number' ? options.maxWidth : undefined;
+          const maxH = typeof options.maxHeight === 'number' ? options.maxHeight : undefined;
+          let scale = 1;
+          if (maxW && vbW > maxW) scale = Math.min(scale, maxW / vbW);
+          if (maxH && vbH * scale > maxH) scale = Math.min(scale, maxH / vbH);
+          if (options.autoSize === true && !maxW && !maxH) {
+            // Provide a gentle cap if user just set autoSize: cap width to 1000 by default
+            const defaultCap = 1000;
+            if (vbW > defaultCap) scale = Math.min(scale, defaultCap / vbW);
+          }
+          if (scale !== 1) {
+            targetW = Math.round(vbW * scale);
+            targetH = Math.round(vbH * scale);
+          }
+          root.setAttribute('width', `${targetW}`);
+          root.setAttribute('height', `${targetH}`);
+          svg = root.outerHTML;
+        }
+      }
+    } catch (_) {
+      // ignore auto-size failure
+    }
+  }
+  return applyExplicitSize(svg);
 }
 
 // Parse SVG and compute a union bbox of visible rect nodes, accounting for simple translate() transforms on ancestor groups.
