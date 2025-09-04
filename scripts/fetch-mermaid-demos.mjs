@@ -52,8 +52,23 @@ async function main() {
     const base = rel.replace(/\.html$/i, '');
     let count = 0;
     for (const pre of blocks) {
-      const content = (pre.textContent || '').trim();
+      let content = (pre.textContent || '').trim();
       if (!content) continue;
+      // Dedent: remove common leading tabs/spaces from all lines except first
+      const lines = content.split(/\r?\n/);
+      let indents = lines.slice(1)
+        .filter(l => l.trim())
+        .map(l => l.match(/^(\s*)/)[1]);
+      // If all lines after first are empty, fallback to all lines
+      if (!indents.length) {
+        indents = lines.filter(l => l.trim()).map(l => l.match(/^(\s*)/)[1]);
+      }
+      const minIndent = indents.length ? indents.reduce((a, b) => a.length < b.length ? a : b) : '';
+      if (minIndent) {
+        content = lines.map((l, i) => (i === 0 || !l.startsWith(minIndent)) ? l : l.slice(minIndent.length)).join('\n');
+      } else {
+        content = lines.join('\n');
+      }
       count++;
       const outDir = join(samplesRoot, dirname(base));
       await mkdir(outDir, { recursive: true });

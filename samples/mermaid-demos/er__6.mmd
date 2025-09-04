@@ -1,25 +1,25 @@
 erDiagram
-      p[Person] {
-          string firstName
-          string lastName
-      }
-      a["Customer Account"] {
-          string email
-      }
+p[Person] {
+    string firstName
+    string lastName
+}
+a["Customer Account"] {
+    string email
+}
 
-      b["Customer Account Secondary"] {
-        string email
-      }
-      
-      c["Customer Account Tertiary"] {
-        string email
-      }
-      
-      d["Customer Account Nth"] {
-        string email
-      }
+b["Customer Account Secondary"] {
+  string email
+}
 
-      p ||--o| a : "hasone"
-      p ||--o| b : "hasonetwo"
-      p ||--o| c : "hasonetwothree"
-      p ||--o| d : "hasonetwothree...Nth"
+c["Customer Account Tertiary"] {
+  string email
+}
+
+d["Customer Account Nth"] {
+  string email
+}
+
+p ||--o| a : "hasone"
+p ||--o| b : "hasonetwo"
+p ||--o| c : "hasonetwothree"
+p ||--o| d : "hasonetwothree...Nth"
