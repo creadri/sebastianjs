@@ -73,6 +73,7 @@ Prebuilt comparison demos are located in the github pages: https://creadri.githu
 ```bash
 npm run fetch:samples
 npm run build:site
+npm run benchmark
 ```
 
 ## Roadmap
@@ -107,22 +108,22 @@ Demo files where taken from mermaid-js/mermaid repository
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2025-09-04T11:12:55.857Z_
+_Last updated: 2025-09-05T07:34:52.990Z_
 
 Rendering all sample diagrams (count: 228).
 
-**Note:** mermaid-cli (mmdc) not found in PATH; its results are omitted.
+
 
 ### Summary Table
 
 | Metric | sebastianjs | mermaid-cli |
 | --- | --- | --- |
-| Samples | 228 | — |
-| Successful | 199 | — |
-| Avg ms | 93.97 | — |
-| Total ms | 21426.00 | — |
-| Min ms | 6.00 | — |
-| Max ms | 1751.00 | — |
+| Samples | 228 | 228 |
+| Successful | 198 | 224 |
+| Avg ms | 83.50 | 2247.21 |
+| Total ms | 19039.00 | 512363.00 |
+| Min ms | 8.00 | 2093.00 |
+| Max ms | 995.00 | 3067.00 |
 
 ### Mermaid Graph
 
@@ -130,9 +131,9 @@ Rendering all sample diagrams (count: 228).
 
 ```mermaid
 xychart
-  title Average Render Time (ms)
+  title "Average Render Time (ms)"
   x-axis [sebastianjs, mermaid-cli]
-  bar 93.97, 0
+  bar [83.50, 2247.21]
 ```
 
 <!-- BENCHMARK_END -->

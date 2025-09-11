@@ -2,7 +2,7 @@
 // Benchmark SebastianJS render performance against mermaid-cli (mmdc) over sample .mmd files
 // Updates README.md between BENCHMARK_START / BENCHMARK_END markers with a Mermaid graph.
 
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { readdir, readFile, writeFile, stat, unlink, access } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { render } from '../src/index.js';
@@ -42,6 +42,72 @@ async function hasMmdc() {
   });
 }
 
+async function findChromeExecutable() {
+  // Respect user-provided executable path
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  const candidates = [];
+  const base = '/home/node/.cache/puppeteer';
+  try {
+    const entries = await readdir(base, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name.startsWith('chrome')) {
+        // e.g., chrome/linux-<ver>/chrome-linux64/chrome
+        const chromeDir = join(base, e.name);
+        try {
+          const osDirs = await readdir(chromeDir, { withFileTypes: true });
+          for (const osd of osDirs) {
+            if (!osd.isDirectory()) continue;
+            const verDir = join(chromeDir, osd.name);
+            try {
+              const bins = await readdir(verDir, { withFileTypes: true });
+              for (const b of bins) {
+                if (b.isDirectory() && b.name.includes('linux')) {
+                  const binPath = join(verDir, b.name, 'chrome');
+                  candidates.push(binPath);
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      } else if (e.name.startsWith('chrome-headless-shell')) {
+        // e.g., chrome-headless-shell/linux-<ver>/chrome-headless-shell-linux64/chrome-headless-shell
+        const chsDir = join(base, e.name);
+        try {
+          const osDirs = await readdir(chsDir, { withFileTypes: true });
+          for (const osd of osDirs) {
+            if (!osd.isDirectory()) continue;
+            const verDir = join(chsDir, osd.name);
+            try {
+              const bins = await readdir(verDir, { withFileTypes: true });
+              for (const b of bins) {
+                if (b.isDirectory() && b.name.includes('linux')) {
+                  const binPath = join(verDir, b.name, 'chrome-headless-shell');
+                  candidates.push(binPath);
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  for (const p of candidates) {
+    try { await access(p); return p; } catch {}
+  }
+  return null;
+}
+
+async function writeTempPptrConfig() {
+  const cfgPath = join(process.env.TMPDIR || '/tmp', `seb-pptr-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
+  const cfg = {
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-zygote', '--disable-dev-shm-usage'],
+  };
+  await writeFile(cfgPath, JSON.stringify(cfg), 'utf8');
+  return cfgPath;
+}
+
 async function benchmarkSebastian(file) {
   const def = await readFile(file, 'utf8');
   return timeAsync(() => render(def, { normalizeViewBox: true, autoSize: true }));
@@ -49,11 +115,27 @@ async function benchmarkSebastian(file) {
 
 async function benchmarkMmdc(file) {
   // Render to memory by piping stdout (using -o - if supported) – fallback to temp file not implemented here.
-  return timeAsync(() => new Promise((resolve, reject) => {
-    const args = ['-i', file, '-o', '/dev/null'];
-    const p = spawn(MMDC_CMD, args, { stdio: 'ignore' });
-    p.on('error', reject);
-    p.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`mmdc exited ${code}`)));
+  // mmdc infers output type from the extension; use a temp .svg file and delete it afterwards.
+  return timeAsync(() => new Promise(async (resolve, reject) => {
+    const tmpOut = join(process.env.TMPDIR || '/tmp', `seb-bench-${process.pid}-${Math.random().toString(36).slice(2)}.svg`);
+    const pptrCfgPath = await writeTempPptrConfig();
+    const args = ['-i', file, '-o', tmpOut, '--puppeteerConfigFile', pptrCfgPath];
+    const env = { ...process.env };
+    try {
+      const chromePath = await findChromeExecutable();
+      if (chromePath) env.PUPPETEER_EXECUTABLE_PATH = chromePath;
+    } catch {}
+    const p = spawn(MMDC_CMD, args, { stdio: 'ignore', env });
+    p.on('error', async (err) => {
+      try { await unlink(tmpOut); } catch {}
+      try { await unlink(pptrCfgPath); } catch {}
+      reject(err);
+    });
+    p.on('exit', async (code) => {
+      try { await unlink(tmpOut); } catch {}
+      try { await unlink(pptrCfgPath); } catch {}
+      if (code === 0) resolve(); else reject(new Error(`mmdc exited ${code}`));
+    });
   }));
 }
 
@@ -69,10 +151,11 @@ function summarize(name, results) {
 function formatNumber(n) { return n.toFixed(2); }
 
 function buildMermaidPie(seb, mmdc) {
-  if (!mmdc) {
-    return `xychart\n  title "Average Render Time (ms)"\n  x-axis [sebastianjs,mermaid-cli]\n  y-axis "miliseconds" 20000 --> 100000\n  bar [${formatNumber(seb.avg)}, 0]`;
-  }
-  return `xychart\n  title "Average Render Time (ms)"\n  x-axis [sebastianjs,mermaid-cli]\n  y-axis "miliseconds" 20000 --> 100000\n  bar [${formatNumber(seb.avg)}, ${formatNumber(mmdc.avg)}`;
+  const title = 'Average Render Time (ms)';
+  const se = formatNumber(seb.avg);
+  const mm = mmdc ? formatNumber(mmdc.avg) : '0';
+  // Keep it simple; ranges often cause render issues in various Mermaid versions
+  return `xychart\n  title "${title}"\n  x-axis [sebastianjs, mermaid-cli]\n  bar [${se}, ${mm}]`;
 }
 
 function buildTable(seb, mmdc) {
@@ -96,7 +179,7 @@ async function updateReadme(seb, mmdc) {
   const section = `## Benchmark\n\n_Last updated: ${new Date().toISOString()}_\n\nRendering all sample diagrams (count: ${seb.count}).\n\n${mmdc ? '' : '**Note:** mermaid-cli (mmdc) not found in PATH; its results are omitted.'}\n\n### Summary Table\n\n${buildTable(seb, mmdc)}\n\n### Mermaid Graph\n\n\n\n\`\`\`mermaid\n${buildMermaidPie(seb, mmdc)}\n\`\`\`\n`;
   let next;
   if (md.includes(startMarker) && md.includes(endMarker)) {
-    next = md.replace(new RegExp(`${startMarker}[\s\S]*?${endMarker}`), `${startMarker}\n${section}\n${endMarker}`);
+  next = md.replace(new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`), `${startMarker}\n${section}\n${endMarker}`);
   } else {
     next = md.trimEnd() + `\n\n${startMarker}\n${section}\n${endMarker}\n`;
   }
