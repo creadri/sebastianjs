@@ -51,7 +51,7 @@ async function writeTempPptrConfig() {
 
 async function benchmarkSebastian(file) {
   const def = await readFile(file, 'utf8');
-  return timeAsync(() => render(def, { normalizeViewBox: true, autoSize: true }));
+  return timeAsync(() => render(def, { width: 800, height: 600 }));
 }
 
 async function benchmarkMmdc(file) {

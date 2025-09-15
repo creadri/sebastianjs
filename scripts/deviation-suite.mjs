@@ -16,6 +16,43 @@ export const PUPPETEER_ARGS = ['--no-sandbox','--disable-setuid-sandbox','--disa
 export const MMDC_TIMEOUT_MS = 25000;
 // ---------------------------------------------------------
 
+// Only compare these stable diagram types for deviation tests
+export const ALLOWED_DIAGRAMS = [
+  'graph',
+  'flowchart',
+  'sequenceDiagram',
+  'classDiagram',
+  'erDiagram',
+  'gantt',
+  'pie',
+  'journey',
+  'stateDiagram', // includes stateDiagram-v2
+  'gitGraph',
+  'quadrantChart',
+];
+
+function getFirstKeyword(def) {
+  const lines = def.split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('%%')) continue; // mermaid comment
+    const m = line.match(/^([A-Za-z][A-Za-z-]*)\b/);
+    if (m) return m[1];
+    break;
+  }
+  return '';
+}
+
+function isAllowed(def) {
+  const kw = getFirstKeyword(def);
+  const normalized = kw === 'stateDiagram-v2' ? 'stateDiagram' : kw;
+  if (ALLOWED_DIAGRAMS.includes(normalized)) return true;
+  // Also accept generic 'graph' definitions detected heuristically
+  if (/^graph\s/i.test(def) || /^flowchart\s/i.test(def)) return true;
+  return false;
+}
+
 async function listSamples(dir) {
   const out = [];
   async function walk(d) {
@@ -104,6 +141,7 @@ async function main() {
   const results = [];
   for (const file of samples) {
     const def = await fsp.readFile(file, 'utf8');
+    if (!isAllowed(def)) continue; // skip beta/experimental diagrams
     let sebSvg, cliSvg;
     try {
       sebSvg = await render(def, { width: WIDTH, height: HEIGHT });

@@ -71,7 +71,7 @@ describe('Mermaid demo samples', () => {
       if (!supported(def)) { skipped++; continue; }
       attempted++;
       try {
-        const svg = await render(def, { normalizeViewBox: true });
+  const svg = await render(def, { width: 800, height: 600 });
         if (!svg.includes('<svg')) throw new Error('Output missing <svg');
         success++;
       } catch (e) {

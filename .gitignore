@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Samples
 samples/manifest.json
+
+# VScode
+.vscode

@@ -34,13 +34,11 @@ import { render } from 'sebastianjs';
 const def = `graph TD; A[Start] --> B{OK?}; B -- Yes --> C[Done]; B -- No --> A;`;
 
 const svg = await render(def, {
-    theme: 'dark',
-    themeVariables: { primaryColor: '#3366ff' },
-    themeCSS: '.node rect{ rx:4; ry:4 }',
-    normalizeViewBox: true,
-    viewBoxMargin: 6,
-    width: 1000,        // optional container / final svg width
-    height: 600,        // optional container / final svg height
+  theme: 'dark',
+  themeVariables: { primaryColor: '#3366ff' },
+  themeCSS: '.node rect{ rx:4; ry:4 }',
+  width: 800,        // optional (defaults to 800)
+  height: 600,       // optional (defaults to 600)
 });
 
 // svg is a <svg …> string
@@ -50,19 +48,18 @@ const svg = await render(def, {
 
 ```bash
 # From a file
-sebastianjs input.mmd -o output.svg --normalize-viewbox
+sebastianjs input.mmd -o output.svg
 
 # From stdin
 echo 'graph TD; A-->B' | sebastianjs - > out.svg
 
 # With theme options
 sebastianjs input.mmd -o output.svg -t dark \
-    --theme-vars '{"primaryColor":"#3366ff"}' \
-    --theme-css '.node rect{rx:4;ry:4}' \
-    --normalize-viewbox --viewbox-margin 6
+  --theme-vars '{"primaryColor":"#3366ff"}' \
+  --theme-css '.node rect{rx:4;ry:4}'
 
 # Set explicit width / height (influences layout + final svg size)
-sebastianjs input.mmd -o out.svg -W 1200 -H 700 --normalize-viewbox
+sebastianjs input.mmd -o out.svg -W 1200 -H 700
 ```
 
 ## Demos
@@ -74,6 +71,9 @@ Prebuilt comparison demos are located in the github pages: https://creadri.githu
 npm run fetch:samples
 npm run build:site
 npm run benchmark
+
+# Optional: Run deviation comparison tests (requires mermaid-cli in PATH)
+DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js --runInBand
 ```
 
 ## Roadmap

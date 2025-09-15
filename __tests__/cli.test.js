@@ -44,8 +44,8 @@ describe('CLI', () => {
   expect(stdout).toContain('<svg');
   const openTag = stdout.match(/<svg[^>]*>/)?.[0] || '';
   expect(openTag).toContain('viewBox=');
-  expect(openTag).not.toMatch(/\bwidth=\"/);
-  expect(openTag).not.toMatch(/\bheight=\"/);
+  expect(openTag).toMatch(/\bwidth=\"800\"/);
+  expect(openTag).toMatch(/\bheight=\"600\"/);
   });
 
   test('renders from file to stdout', async () => {
@@ -68,8 +68,8 @@ describe('CLI', () => {
   expect(content).toContain('<svg');
   const tag = content.match(/<svg[^>]*>/)?.[0] || '';
   expect(tag).toContain('viewBox=');
-  expect(tag).not.toMatch(/\bwidth=\"/);
-  expect(tag).not.toMatch(/\bheight=\"/);
+  expect(tag).toMatch(/\bwidth=\"800\"/);
+  expect(tag).toMatch(/\bheight=\"600\"/);
     await fs.unlink(out).catch(() => {});
   });
 
