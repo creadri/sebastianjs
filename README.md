@@ -74,6 +74,13 @@ npm run benchmark
 
 # Optional: Run deviation comparison tests (requires mermaid-cli in PATH)
 DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js --runInBand
+
+# Run deviation on a single sample
+# Using env var (matches by basename or relative path under samples folder):
+DEVIATION_TESTS=1 DEVIATION_SAMPLE=flowchart__1.mmd npm test -- __tests__/samples-deviation.test.js --runInBand
+
+# Direct CLI for ad-hoc runs:
+node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 ```
 
 ## Roadmap
@@ -96,7 +103,12 @@ Note on accuracy
 
 ## Dependencies
 
-Canvas package is required.
+### Install dependencies for Canvas (Ubuntu/Debian)
+```bash
+sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+```
+
+Src: https://www.npmjs.com/package/canvas
 
 ## Licence
 

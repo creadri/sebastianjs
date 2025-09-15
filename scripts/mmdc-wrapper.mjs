@@ -7,8 +7,15 @@ import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { access } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
 const MMDC_CMD = 'mmdc';
+
+function resolveMmdcCmd() {
+  const local = resolve(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'mmdc.cmd' : 'mmdc');
+  if (existsSync(local)) return local;
+  return MMDC_CMD;
+}
 
 const PUPPETEER_CONFIG_CANDIDATES = [
   '.puppeteerrc.cjs',
@@ -64,6 +71,7 @@ export function spawnAsync(cmd, args, opts) {
 
 export async function spawnMmdc(userArgs, opts = {}) {
   const args = await ensurePuppeteerConfigArg(userArgs, { cwd: opts.cwd });
-  return spawnAsync(MMDC_CMD, args, opts);
+  const cmd = resolveMmdcCmd();
+  return spawnAsync(cmd, args, opts);
 }
 

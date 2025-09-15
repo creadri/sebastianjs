@@ -1,5 +1,5 @@
 import { promises as fsp } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, basename, resolve, isAbsolute } from 'path';
 import { render } from '../src/index.js';
 import { tmpdir } from 'os';
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
@@ -33,13 +33,20 @@ export const ALLOWED_DIAGRAMS = [
 
 function getFirstKeyword(def) {
   const lines = def.split(/\r?\n/);
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (line.startsWith('%%')) continue; // mermaid comment
-    const m = line.match(/^([A-Za-z][A-Za-z-]*)\b/);
+  let inFrontmatter = false;
+  for (let idx = 0; idx < lines.length; idx++) {
+    let raw = lines[idx];
+    const trimmed = raw.trim();
+    if (idx === 0 && trimmed === '---') { inFrontmatter = true; continue; }
+    if (inFrontmatter) {
+      if (trimmed === '---') { inFrontmatter = false; }
+      continue;
+    }
+    if (!trimmed) continue;
+    if (trimmed.startsWith('%%')) continue; // mermaid comment
+    const m = trimmed.match(/^([A-Za-z][A-Za-z-]*)\b/);
     if (m) return m[1];
-    break;
+    // If this line starts with something else (like titles), keep scanning next lines
   }
   return '';
 }
@@ -48,8 +55,16 @@ function isAllowed(def) {
   const kw = getFirstKeyword(def);
   const normalized = kw === 'stateDiagram-v2' ? 'stateDiagram' : kw;
   if (ALLOWED_DIAGRAMS.includes(normalized)) return true;
-  // Also accept generic 'graph' definitions detected heuristically
-  if (/^graph\s/i.test(def) || /^flowchart\s/i.test(def)) return true;
+  // Also accept if any non-comment, non-frontmatter line starts with graph/flowchart
+  const lines = def.split(/\r?\n/);
+  let inFrontmatter = false;
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx].trim();
+    if (idx === 0 && line === '---') { inFrontmatter = true; continue; }
+    if (inFrontmatter) { if (line === '---') inFrontmatter = false; continue; }
+    if (!line || line.startsWith('%%')) continue;
+    if (/^(graph|flowchart)\s/i.test(line)) return true;
+  }
   return false;
 }
 
@@ -98,21 +113,42 @@ function extractNodePositions(svg) {
   const doc = dom.window.document;
   const nodes = doc.querySelectorAll('.node');
   const map = new Map();
+  const parseTranslate = (t) => {
+    if (!t) return null;
+    const m = t.match(/translate\(([^,]+),\s*([^)]+)\)/);
+    if (!m) return null;
+    const x = parseFloat(m[1]);
+    const y = parseFloat(m[2]);
+    if (Number.isNaN(x) || Number.isNaN(y)) return null;
+    return { x, y };
+  };
   for (const node of nodes) {
     const id = node.id || node.getAttribute('id');
     if (!id) continue;
-    const t = node.getAttribute('transform');
-    if (!t) continue;
-    const m = t.match(/translate\(([^,]+),\s*([^)]+)\)/);
-    if (!m) continue;
-    const x = parseFloat(m[1]);
-    const y = parseFloat(m[2]);
-    if (!Number.isNaN(x) && !Number.isNaN(y)) map.set(id, { x, y });
+    // Direct transform on the node
+    let pos = parseTranslate(node.getAttribute('transform'));
+    // Fallback: look for a descendant with translate()
+    if (!pos) {
+      const inner = node.querySelector('[transform*="translate("]');
+      if (inner) pos = parseTranslate(inner.getAttribute('transform'));
+    }
+    // Fallback: use rect center if present
+    if (!pos) {
+      const r = node.querySelector('rect');
+      if (r) {
+        const x = parseFloat(r.getAttribute('x') || '0');
+        const y = parseFloat(r.getAttribute('y') || '0');
+        const w = parseFloat(r.getAttribute('width') || '0');
+        const h = parseFloat(r.getAttribute('height') || '0');
+        if (Number.isFinite(x) && Number.isFinite(y)) pos = { x: x + (w||0)/2, y: y + (h||0)/2 };
+      }
+    }
+    if (pos) map.set(id, pos);
   }
   return map;
 }
 
-function averageDeviation(a, b) {
+function averageDeviation(a, b, { verbose = false } = {}) {
   const ids = Array.from(a.keys()).filter(id => b.has(id));
   if (!ids.length) return { raw: Infinity, norm: Infinity };
   const arrA = ids.map(id => a.get(id));
@@ -124,18 +160,31 @@ function averageDeviation(a, b) {
   const span = (xs, ys) => ({ x: (max(xs)-min(xs)) || 1, y: (max(ys)-min(ys)) || 1, minX: min(xs), minY: min(ys) });
   const sA = span(xsA, ysA); const sB = span(xsB, ysB);
   let totalRaw=0, totalNorm=0;
+  const details = verbose ? [] : undefined;
   for (let i=0;i<ids.length;i++) {
     const pA = arrA[i]; const pB = arrB[i];
     totalRaw += Math.hypot(pA.x - pB.x, pA.y - pB.y);
     const ax = (pA.x - sA.minX)/sA.x; const ay=(pA.y - sA.minY)/sA.y;
     const bx = (pB.x - sB.minX)/sB.x; const by=(pB.y - sB.minY)/sB.y;
-    totalNorm += Math.hypot(ax - bx, ay - by);
+    const dNorm = Math.hypot(ax - bx, ay - by);
+    totalNorm += dNorm;
+    if (verbose) details.push({ id: ids[i], raw: Math.hypot(pA.x - pB.x, pA.y - pB.y), norm: dNorm, a: pA, b: pB });
   }
-  return { raw: totalRaw/ids.length, norm: totalNorm/ids.length, count: ids.length };
+  return { raw: totalRaw/ids.length, norm: totalNorm/ids.length, count: ids.length, details };
 }
 
-async function main() {
+async function main(options = {}) {
+  const single = options.sample || process.env.DEVIATION_SAMPLE || '';
+  const verbose = options.verbose || process.env.DEVIATION_VERBOSE === '1' || process.env.VERBOSE === '1';
   let samples = await listSamples(SAMPLE_DIR);
+  if (single) {
+    const target = isAbsolute(single) ? single : resolve(SAMPLE_DIR, single);
+    const matches = samples.filter(s => s === target || basename(s) === basename(single) || s.endsWith(single));
+    if (matches.length === 0) {
+      throw new Error(`No sample matched: ${single}`);
+    }
+    samples = [matches[0]];
+  }
   if (MAX_SAMPLES && Number.isFinite(MAX_SAMPLES)) samples = samples.slice(0, MAX_SAMPLES);
 
   const results = [];
@@ -152,8 +201,8 @@ async function main() {
     }
     const sebPos = extractNodePositions(sebSvg);
     const cliPos = extractNodePositions(cliSvg);
-    const { raw, norm, count } = averageDeviation(sebPos, cliPos);
-    results.push({ file, raw, norm, count });
+    const stats = averageDeviation(sebPos, cliPos, { verbose });
+    results.push({ file, raw: stats.raw, norm: stats.norm, count: stats.count, details: stats.details });
   }
 
   // Aggregate
@@ -162,7 +211,7 @@ async function main() {
   const avgRaw = ok.reduce((a,r)=>a+r.raw,0)/(ok.length||1);
   const failures = ok.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
 
-  console.log(JSON.stringify({
+  const report = {
     samplesProcessed: samples.length,
     compared: ok.length,
     avgNormalizedDeviation: avgNorm,
@@ -171,12 +220,39 @@ async function main() {
     thresholdRaw: POSITION_DEVIATION_THRESHOLD,
     failures: failures.slice(0,10),
     failuresCount: failures.length,
-  }, null, 2));
+  };
+  if (verbose) {
+    report.items = results.map(r => ({ file: r.file, count: r.count, raw: r.raw, norm: r.norm, details: r.details }));
+  }
+  console.log(JSON.stringify(report, null, 2));
 
   // Export minimal summary for test assertion
   return { avgNorm, avgRaw, failuresCount: failures.length };
 }
 
-export async function runDeviationSuite() {
-  return main();
+export async function runDeviationSuite(options) {
+  return main(options);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const args = process.argv.slice(2);
+  let fileArg = '';
+  let verbose = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '-f' || a === '--file' || a === '--sample') {
+      fileArg = args[++i] || '';
+    } else if (a === '-v' || a === '--verbose') {
+      verbose = true;
+    }
+  }
+  main({ sample: fileArg, verbose })
+    .then(({ avgNorm, avgRaw, failuresCount }) => {
+      console.log('Deviation summary:', { avgNorm, avgRaw, failuresCount });
+      setImmediate(() => process.exit(0));
+    })
+    .catch((e) => {
+      console.error('Deviation run failed:', e?.stack || e?.message || String(e));
+      process.exit(1);
+    });
 }
