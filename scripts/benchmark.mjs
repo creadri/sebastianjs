@@ -6,6 +6,7 @@ import { readdir, readFile, writeFile, stat, unlink, access } from 'node:fs/prom
 import { join, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { render } from '../src/index.js';
+import { ensurePuppeteerConfigArg } from './mmdc-wrapper.mjs';
 
 const SAMPLES_DIR = 'samples/mermaid-demos';
 const README = 'README.md';
@@ -33,77 +34,17 @@ async function timeAsync(fn) {
 }
 
 async function hasMmdc() {
-  return new Promise((resolve) => {
-    const p = spawn(MMDC_CMD, ['-h']);
-    let done = false;
-    p.on('error', () => { if (!done) { done = true; resolve(false); } });
-    p.on('exit', () => { if (!done) { done = true; resolve(true); } });
-    setTimeout(() => { if (!done) { done = true; try { p.kill(); } catch {} resolve(false); } }, 3000);
-  });
-}
-
-async function findChromeExecutable() {
-  // Respect user-provided executable path
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-
-  const candidates = [];
-  const base = '/home/node/.cache/puppeteer';
   try {
-    const entries = await readdir(base, { withFileTypes: true });
-    for (const e of entries) {
-      if (!e.isDirectory()) continue;
-      if (e.name.startsWith('chrome')) {
-        // e.g., chrome/linux-<ver>/chrome-linux64/chrome
-        const chromeDir = join(base, e.name);
-        try {
-          const osDirs = await readdir(chromeDir, { withFileTypes: true });
-          for (const osd of osDirs) {
-            if (!osd.isDirectory()) continue;
-            const verDir = join(chromeDir, osd.name);
-            try {
-              const bins = await readdir(verDir, { withFileTypes: true });
-              for (const b of bins) {
-                if (b.isDirectory() && b.name.includes('linux')) {
-                  const binPath = join(verDir, b.name, 'chrome');
-                  candidates.push(binPath);
-                }
-              }
-            } catch {}
-          }
-        } catch {}
-      } else if (e.name.startsWith('chrome-headless-shell')) {
-        // e.g., chrome-headless-shell/linux-<ver>/chrome-headless-shell-linux64/chrome-headless-shell
-        const chsDir = join(base, e.name);
-        try {
-          const osDirs = await readdir(chsDir, { withFileTypes: true });
-          for (const osd of osDirs) {
-            if (!osd.isDirectory()) continue;
-            const verDir = join(chsDir, osd.name);
-            try {
-              const bins = await readdir(verDir, { withFileTypes: true });
-              for (const b of bins) {
-                if (b.isDirectory() && b.name.includes('linux')) {
-                  const binPath = join(verDir, b.name, 'chrome-headless-shell');
-                  candidates.push(binPath);
-                }
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-    }
-  } catch {}
-  for (const p of candidates) {
-    try { await access(p); return p; } catch {}
-  }
-  return null;
+    const p = spawn(MMDC_CMD, ['--version']);
+    return await new Promise(res => { p.on('exit', c => res(c === 0)); p.on('error', () => res(false)); setTimeout(()=>{try{p.kill();}catch{} res(false);}, 2000); });
+  } catch { return false; }
 }
+
+// findChromeExecutable imported from wrapper
 
 async function writeTempPptrConfig() {
   const cfgPath = join(process.env.TMPDIR || '/tmp', `seb-pptr-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
-  const cfg = {
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-zygote', '--disable-dev-shm-usage'],
-  };
+  const cfg = { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-zygote', '--disable-dev-shm-usage'] };
   await writeFile(cfgPath, JSON.stringify(cfg), 'utf8');
   return cfgPath;
 }
@@ -118,13 +59,10 @@ async function benchmarkMmdc(file) {
   // mmdc infers output type from the extension; use a temp .svg file and delete it afterwards.
   return timeAsync(() => new Promise(async (resolve, reject) => {
     const tmpOut = join(process.env.TMPDIR || '/tmp', `seb-bench-${process.pid}-${Math.random().toString(36).slice(2)}.svg`);
-    const pptrCfgPath = await writeTempPptrConfig();
-    const args = ['-i', file, '-o', tmpOut, '--puppeteerConfigFile', pptrCfgPath];
+  const pptrCfgPath = await writeTempPptrConfig();
+  let args = ['-i', file, '-o', tmpOut, '--puppeteerConfigFile', pptrCfgPath];
+  args = await ensurePuppeteerConfigArg(args);
     const env = { ...process.env };
-    try {
-      const chromePath = await findChromeExecutable();
-      if (chromePath) env.PUPPETEER_EXECUTABLE_PATH = chromePath;
-    } catch {}
     const p = spawn(MMDC_CMD, args, { stdio: 'ignore', env });
     p.on('error', async (err) => {
       try { await unlink(tmpOut); } catch {}

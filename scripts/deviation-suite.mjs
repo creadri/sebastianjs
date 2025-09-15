@@ -1,9 +1,9 @@
 import { promises as fsp } from 'fs';
 import { join, extname } from 'path';
 import { render } from '../src/index.js';
-import { spawn } from 'child_process';
 import { tmpdir } from 'os';
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { spawnMmdc } from './mmdc-wrapper.mjs';
 
 // ---------------- Configurable Constants ----------------
 export const NORMALIZED_DEVIATION_THRESHOLD = 0.12; // Allow a bit more variance across many diagrams
@@ -29,17 +29,7 @@ async function listSamples(dir) {
   return out.sort();
 }
 
-function spawnAsync(cmd, args, opts) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, opts);
-    let stderr = '';
-    p.stderr && p.stderr.on('data', d => { stderr += d.toString(); });
-    p.on('error', err => reject(err));
-    p.on('exit', code => {
-      if (code === 0) resolve({ code, stderr }); else reject(new Error(`Command ${cmd} exited ${code}: ${stderr}`));
-    });
-  });
-}
+// spawnAsync handled via wrapper's spawnMmdc
 
 async function renderWithMmdc(def, { width, height }) {
   const inputFile = join(tmpdir(), `dev-sample-${Date.now()}-${Math.random().toString(36).slice(2)}.mmd`);
@@ -53,7 +43,7 @@ async function renderWithMmdc(def, { width, height }) {
     if (width) args.push('-w', String(width));
     if (height) args.push('-H', String(height));
     await Promise.race([
-      spawnAsync('mmdc', args, { stdio: ['ignore','ignore','pipe'], env: { ...process.env } }),
+      spawnMmdc(args, { stdio: ['ignore','ignore','pipe'], env: { ...process.env } }),
       new Promise((_, reject) => setTimeout(()=>reject(new Error('mmdc timeout')), MMDC_TIMEOUT_MS)),
     ]);
     if (!existsSync(outputFile)) throw new Error('mmdc no output');

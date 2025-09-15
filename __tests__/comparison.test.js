@@ -5,6 +5,7 @@ import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { promises as fsp } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { spawnMmdc, ensurePuppeteerConfigArg } from '../scripts/mmdc-wrapper.mjs';
 
 // ------------------------- Tunable Test Constants -------------------------
 // Threshold for average node position deviation (in pixels). Lower => stricter.
@@ -115,55 +116,7 @@ function calculateNormalizedDeviation(pos1, pos2) {
  * @param {Object} options - Options with width and height.
  * @returns {string} - SVG content.
  */
-async function findChromeExecutable() {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  // Mirror logic from benchmark script (simplified search paths)
-  const candidates = [];
-  const base = '/home/node/.cache/puppeteer';
-  try {
-    const entries = await fsp.readdir(base, { withFileTypes: true });
-    for (const e of entries) {
-      if (!e.isDirectory()) continue;
-      if (e.name.startsWith('chrome')) {
-        const chromeDir = join(base, e.name);
-        try {
-          const osDirs = await fsp.readdir(chromeDir, { withFileTypes: true });
-          for (const osd of osDirs) {
-            if (!osd.isDirectory()) continue;
-            const verDir = join(chromeDir, osd.name);
-            try {
-              const bins = await fsp.readdir(verDir, { withFileTypes: true });
-              for (const b of bins) {
-                if (b.isDirectory() && b.name.includes('linux')) {
-                  candidates.push(join(verDir, b.name, 'chrome'));
-                }
-              }
-            } catch {}
-          }
-        } catch {}
-      } else if (e.name.startsWith('chrome-headless-shell')) {
-        const chsDir = join(base, e.name);
-        try {
-          const osDirs = await fsp.readdir(chsDir, { withFileTypes: true });
-          for (const osd of osDirs) {
-            if (!osd.isDirectory()) continue;
-            const verDir = join(chsDir, osd.name);
-            try {
-              const bins = await fsp.readdir(verDir, { withFileTypes: true });
-              for (const b of bins) {
-                if (b.isDirectory() && b.name.includes('linux')) {
-                  candidates.push(join(verDir, b.name, 'chrome-headless-shell'));
-                }
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-    }
-  } catch {}
-  for (const p of candidates) { try { await fsp.access(p); return p; } catch {} }
-  return null;
-}
+// Use wrapper's findChromeExecutable
 
 async function writeTempPptrConfig() {
   const cfgPath = join(process.env.TMPDIR || '/tmp', `seb-pptr-test-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
@@ -172,17 +125,7 @@ async function writeTempPptrConfig() {
   return cfgPath;
 }
 
-function spawnAsync(cmd, args, opts) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, opts);
-    let stderr = '';
-    p.stderr && p.stderr.on('data', d => { stderr += d.toString(); });
-    p.on('error', err => reject(err));
-    p.on('exit', code => {
-      if (code === 0) resolve({ code, stderr }); else reject(new Error(`Command ${cmd} exited ${code}: ${stderr}`));
-    });
-  });
-}
+// Use wrapper's spawnMmdc
 
 async function renderWithMermaidCli(definition, options = {}) {
   const tempDir = tmpdir();
@@ -192,17 +135,14 @@ async function renderWithMermaidCli(definition, options = {}) {
   try {
     writeFileSync(inputFile, definition, 'utf8');
     pptrCfg = await writeTempPptrConfig();
-    const args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', pptrCfg];
+  let args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', pptrCfg];
+  args = await ensurePuppeteerConfigArg(args);
     if (options.width) args.push('-w', String(options.width));
     if (options.height) args.push('-H', String(options.height));
     const env = { ...process.env };
-    try {
-      const chrome = await findChromeExecutable();
-      if (chrome) env.PUPPETEER_EXECUTABLE_PATH = chrome;
-    } catch {}
     // Enforce a timeout manually
     await Promise.race([
-      spawnAsync('mmdc', args, { env, stdio: ['ignore','ignore','pipe'] }),
+  spawnMmdc(args, { env, stdio: ['ignore','ignore','pipe'] }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('mmdc render timeout')), MMDC_RENDER_TIMEOUT_MS)),
     ]);
     if (!existsSync(outputFile)) throw new Error('mmdc did not produce output file');

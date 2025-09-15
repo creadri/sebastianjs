@@ -1,26 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Install system deps for canvas & Chromium
+# Update baseline
 sudo apt-get update
-sudo apt-get install -y --no-install-recommends \
-  libnss3 libxss1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-  libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-  libgbm1 libpango-1.0-0 libpangocairo-1.0-0 libgtk-3-0 libxshmfence1 \
-  fonts-liberation libappindicator3-1 libx11-xcb1 xvfb \
-  ca-certificates wget gnupg
-
-# Optional: install Chromium (Debian package)
+# Install dependencies for Puppeteer. Src: https://pptr.dev/troubleshooting
+sudo apt-get install -y ca-certificates \
+  fonts-liberation \
+  libasound2 \
+  libatk-bridge2.0-0 \
+  libatk1.0-0 \
+  libc6 \
+  libcairo2 \
+  libcups2 \
+  libdbus-1-3 \
+  libexpat1 \
+  libfontconfig1 \
+  libgbm1 \
+  libgcc1 \
+  libglib2.0-0 \
+  libgtk-3-0 \
+  libnspr4 \
+  libnss3 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  libstdc++6\
+  libx11-6\
+  libx11-xcb1\
+  libxcb1\
+  libxcomposite1\
+  libxcursor1\
+  libxdamage1\
+  libxext6\
+  libxfixes3\
+  libxi6\
+  libxrandr2\
+  libxrender1\
+  libxss1\
+  libxtst6\
+  lsb-release\
+  wget\
+  xdg-utils
+# Install chromium for Puppeteer
 sudo apt-get install -y chromium
+# Install dependencies for Canvas Src: https://www.npmjs.com/package/canvas
+sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+# Skip Puppeteer Chromium download
+export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Add configuration for puppeteer in node user
+cat <<EOF > /home/node/.puppeteerrc.json
+{
+  "args": ["--no-sandbox", "--disable-setuid-sandbox"]
+}
+EOF
 
-# Install mermaid-cli globally (will pull puppeteer; rely on Chromium system binary)
-# Puppeteer by default downloads its own Chromium; we can skip download via env if desired
-export PUPPETEER_SKIP_DOWNLOAD=true
-npm install -g @mermaid-js/mermaid-cli@latest puppeteer
+# Add Env variables to bashrc and automatically append mmdc command
+cat <<EOF >> /home/node/.bashrc
+alias mmdc='mmdc --puppeteerConfigFile ~/.puppeteerrc.json'
+export PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
+EOF
 
-# Link chromium for puppeteer if needed
-if ! command -v chromium >/dev/null 2>&1 && command -v chromium-browser >/dev/null 2>&1; then
-  sudo ln -s "$(command -v chromium-browser)" /usr/local/bin/chromium
-fi
+npm install -g @mermaid-js/mermaid-cli@latest
 
 echo 'Devcontainer setup complete.'

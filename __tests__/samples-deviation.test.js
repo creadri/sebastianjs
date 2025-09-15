@@ -1,18 +1,10 @@
 import { runDeviationSuite, NORMALIZED_DEVIATION_THRESHOLD, POSITION_DEVIATION_THRESHOLD } from '../scripts/deviation-suite.mjs';
+import { execSync, spawnSync } from 'child_process';
 
 describe('Samples deviation vs mermaid-cli', () => {
-  const hasMmdc = await (async () => {
-    try {
-      const mod = await import('child_process');
-      const { execSync, spawnSync } = mod;
-      try {
-        execSync('mmdc --version', { stdio: 'ignore', env: process.env });
-        return true;
-      } catch (e) {
-        try { const r = spawnSync('mmdc', ['--version'], { env: process.env }); if (r.status === 0) return true; } catch {}
-        return false;
-      }
-    } catch { return false; }
+  const hasMmdc = (() => {
+    try { execSync('mmdc --version', { stdio: 'ignore', env: process.env }); return true; }
+    catch { try { const r = spawnSync('mmdc', ['--version'], { env: process.env }); return r.status === 0; } catch { return false; } }
   })();
 
   console.log('mmdc presence detected in test:', hasMmdc);
