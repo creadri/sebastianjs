@@ -1,10 +1,207 @@
 // Polyfill SVG measurement APIs used by Mermaid. Try precise canvas-based
 // text metrics first; fall back to rough stubs if canvas isn't available.
-const ensureProto = (ctor, name, fn) => {
-  if (ctor && !ctor.prototype[name]) {
-    Object.defineProperty(ctor.prototype, name, { value: fn, configurable: true });
-  }
+const defineProto = (ctor, name, fn) => {
+  if (!ctor) return;
+  Object.defineProperty(ctor.prototype, name, {
+    value: fn,
+    configurable: true,
+    writable: true,
+  });
 };
+
+const isCommandToken = (token) => /^[a-zA-Z]$/.test(token);
+
+const parsePathBounds = (d) => {
+  if (!d || typeof d !== 'string') return null;
+  const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g);
+  if (!tokens || tokens.length === 0) return null;
+
+  let i = 0;
+  let current = { x: 0, y: 0 };
+  let subpathStart = { x: 0, y: 0 };
+  const points = [];
+
+  const addPoint = (pt) => {
+    if (!pt) return;
+    const { x, y } = pt;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      points.push({ x, y });
+    }
+  };
+
+  const readNumber = () => {
+    if (i >= tokens.length) return NaN;
+    return parseFloat(tokens[i++]);
+  };
+
+  const readPair = (isRelative) => {
+    const xVal = readNumber();
+    const yVal = readNumber();
+    if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) return null;
+    return isRelative
+      ? { x: current.x + xVal, y: current.y + yVal }
+      : { x: xVal, y: yVal };
+  };
+
+  while (i < tokens.length) {
+    let token = tokens[i++];
+    if (!isCommandToken(token)) {
+      // Unexpected token; skip to next command token
+      continue;
+    }
+    let cmd = token;
+    const relative = cmd.toLowerCase() === cmd;
+    cmd = cmd.toLowerCase();
+
+    const flushImplicitLineTos = () => {
+      while (i < tokens.length && !isCommandToken(tokens[i])) {
+        const pt = readPair(relative);
+        if (!pt) return;
+        current = pt;
+        addPoint(current);
+      }
+    };
+
+    switch (cmd) {
+      case 'm': {
+        const first = readPair(relative);
+        if (!first) break;
+        current = first;
+        subpathStart = { ...current };
+        addPoint(current);
+        flushImplicitLineTos();
+        break;
+      }
+      case 'l': {
+        flushImplicitLineTos();
+        break;
+      }
+      case 'h': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const xVal = readNumber();
+          if (!Number.isFinite(xVal)) break;
+          const x = relative ? current.x + xVal : xVal;
+          current = { x, y: current.y };
+          addPoint(current);
+        }
+        break;
+      }
+      case 'v': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const yVal = readNumber();
+          if (!Number.isFinite(yVal)) break;
+          const y = relative ? current.y + yVal : yVal;
+          current = { x: current.x, y };
+          addPoint(current);
+        }
+        break;
+      }
+      case 'c': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const c1 = readPair(relative);
+          const c2 = readPair(relative);
+          const end = readPair(relative);
+          if (!c1 || !c2 || !end) break;
+          addPoint(c1);
+          addPoint(c2);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 's': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const c2 = readPair(relative);
+          const end = readPair(relative);
+          if (!c2 || !end) break;
+          addPoint(c2);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'q': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const ctrl = readPair(relative);
+          const end = readPair(relative);
+          if (!ctrl || !end) break;
+          addPoint(ctrl);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 't': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const end = readPair(relative);
+          if (!end) break;
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'a': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const rx = readNumber();
+          const ry = readNumber();
+          // x-axis rotation, large-arc-flag, sweep-flag
+          readNumber(); // rotation
+          readNumber(); // large arc flag
+          readNumber(); // sweep flag
+          const xVal = readNumber();
+          const yVal = readNumber();
+          if (!Number.isFinite(rx) || !Number.isFinite(ry) || !Number.isFinite(xVal) || !Number.isFinite(yVal)) break;
+          const target = relative
+            ? { x: current.x + xVal, y: current.y + yVal }
+            : { x: xVal, y: yVal };
+          const absRx = Math.abs(rx);
+          const absRy = Math.abs(ry);
+          addPoint({ x: current.x - absRx, y: current.y - absRy });
+          addPoint({ x: current.x + absRx, y: current.y + absRy });
+          addPoint({ x: target.x - absRx, y: target.y - absRy });
+          addPoint({ x: target.x + absRx, y: target.y + absRy });
+          current = target;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'z': {
+        current = { ...subpathStart };
+        addPoint(current);
+        break;
+      }
+      default: {
+        // Unsupported command; skip its parameters by consuming until next command
+        while (i < tokens.length && !isCommandToken(tokens[i])) i++;
+        break;
+      }
+    }
+  }
+
+  if (!points.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { x, y } of points) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY),
+  };
+};
+
+const TEXT_WIDTH_SCALE = 1.18;
+const TEXT_HEIGHT_SCALE = 1.08;
 
 /**
  * Installs text metrics using node-canvas for accurate SVG text measurement.
@@ -49,7 +246,7 @@ export async function installTextMetrics(win, options = {}) {
     const defaultFontSize = 12;
     const defaultFamily = (options?.themeVariables?.fontFamily)
       || process.env.SEBASTIANJS_DEFAULT_FONT_FAMILY
-      || '"trebuchet ms", Verdana, Arial, sans-serif';
+      || 'DejaVu Sans, Arial, sans-serif';
     const getFontSize = (el) => {
       const v = el?.getAttribute?.('font-size') || el?.style?.fontSize || defaultFontSize;
       const n = parseFloat(String(v));
@@ -68,6 +265,11 @@ export async function installTextMetrics(win, options = {}) {
     const measureTextWidth = (el, text) => {
       setCtxFont(el);
       const m = ctx.measureText(text || '');
+      if (!m) return 0;
+      const left = Number.isFinite(m.actualBoundingBoxLeft) ? m.actualBoundingBoxLeft : 0;
+      const right = Number.isFinite(m.actualBoundingBoxRight) ? m.actualBoundingBoxRight : 0;
+      const width = left + right;
+      if (width > 0) return width;
       return m.width || 0;
     };
     const extractLines = (el) => {
@@ -84,10 +286,25 @@ export async function installTextMetrics(win, options = {}) {
       const size = setCtxFont(el);
       const lines = extractLines(el);
       let width = 0;
-      for (const ln of lines) width = Math.max(width, ctx.measureText(ln).width || 0);
-      // Use a stable 1.2x font-size per line to better match CLI headless Chrome
-      const lineH = size * 1.2;
-      const height = Math.max(1, lines.length) * lineH;
+      const lineHeights = [];
+      for (const ln of lines) {
+        const metrics = ctx.measureText(ln);
+        if (!metrics) continue;
+        const left = Number.isFinite(metrics.actualBoundingBoxLeft) ? metrics.actualBoundingBoxLeft : 0;
+        const right = Number.isFinite(metrics.actualBoundingBoxRight) ? metrics.actualBoundingBoxRight : 0;
+        const w = (left + right) || metrics.width || 0;
+        width = Math.max(width, w);
+        const ascent = Number.isFinite(metrics.actualBoundingBoxAscent) ? metrics.actualBoundingBoxAscent : NaN;
+        const descent = Number.isFinite(metrics.actualBoundingBoxDescent) ? metrics.actualBoundingBoxDescent : NaN;
+        const lineHeight = Number.isFinite(ascent) && Number.isFinite(descent)
+          ? ascent + descent
+          : size * 1.2;
+        lineHeights.push(lineHeight);
+      }
+      if (lineHeights.length === 0) lineHeights.push(size * 1.2);
+      let height = lineHeights.reduce((sum, v) => sum + v, 0);
+      width = (width * TEXT_WIDTH_SCALE) + 2;
+      height = height * TEXT_HEIGHT_SCALE + 2;
       return { width, height };
     };
 
@@ -96,7 +313,12 @@ export async function installTextMetrics(win, options = {}) {
       if (tag === 'text' || tag === 'tspan') {
         const { width, height } = measureTextBlock(this);
         // Slight padding to approximate CLI bounds
-        return { x: 0, y: 0, width: width + 5, height: height + 5 };
+        return { x: 0, y: 0, width: width + 6, height: height + 6 };
+      }
+      if (tag === 'path') {
+        const bounds = parsePathBounds(this.getAttribute?.('d'));
+        if (bounds) return bounds;
+        return { x: 0, y: 0, width: 0, height: 0 };
       }
       // If element has width/height, use those
       const wAttr = parseFloat(this.getAttribute?.('width') || 'NaN');
@@ -126,10 +348,10 @@ export async function installTextMetrics(win, options = {}) {
       return measureTextWidth(this, this.textContent || '');
     };
 
-    ensureProto(win.SVGElement, 'getBBox', getBBoxCanvas);
-    ensureProto(win.SVGGraphicsElement, 'getBBox', getBBoxCanvas);
-    ensureProto(win.SVGTextContentElement, 'getComputedTextLength', getComputedTextLengthCanvas);
-    ensureProto(win.SVGElement, 'getComputedTextLength', getComputedTextLengthCanvas);
+    defineProto(win.SVGElement, 'getBBox', getBBoxCanvas);
+    defineProto(win.SVGGraphicsElement, 'getBBox', getBBoxCanvas);
+    defineProto(win.SVGTextContentElement, 'getComputedTextLength', getComputedTextLengthCanvas);
+    defineProto(win.SVGElement, 'getComputedTextLength', getComputedTextLengthCanvas);
     return true;
   } catch (err) {
     // Canvas must be available; surface a clear error

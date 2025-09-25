@@ -9,7 +9,7 @@ export function createMermaidConfig(options = {}) {
     securityLevel: 'loose',
     htmlLabels: false,
     themeVariables: {
-      fontFamily: (options?.themeVariables?.fontFamily) || '"trebuchet ms", Verdana, Arial, sans-serif',
+      fontFamily: (options?.themeVariables?.fontFamily) || 'DejaVu Sans, Arial, sans-serif',
     },
   };
   if (options && options.theme) initConfig.theme = options.theme;

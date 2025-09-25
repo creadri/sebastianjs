@@ -1,5 +1,183 @@
 import { JSDOM } from 'jsdom';
 
+const isCommandToken = (token) => /^[a-zA-Z]$/.test(token);
+
+const parsePathBounds = (d) => {
+  if (!d || typeof d !== 'string') return null;
+  const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g);
+  if (!tokens || tokens.length === 0) return null;
+
+  let i = 0;
+  let current = { x: 0, y: 0 };
+  let subpathStart = { x: 0, y: 0 };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  const addPoint = (pt) => {
+    if (!pt) return;
+    const { x, y } = pt;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  };
+
+  const readNumber = () => {
+    if (i >= tokens.length) return NaN;
+    return parseFloat(tokens[i++]);
+  };
+
+  const readPair = (isRelative) => {
+    const xVal = readNumber();
+    const yVal = readNumber();
+    if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) return null;
+    return isRelative ? { x: current.x + xVal, y: current.y + yVal } : { x: xVal, y: yVal };
+  };
+
+  const flushLineTos = (relative) => {
+    while (i < tokens.length && !isCommandToken(tokens[i])) {
+      const pt = readPair(relative);
+      if (!pt) return;
+      current = pt;
+      addPoint(current);
+    }
+  };
+
+  while (i < tokens.length) {
+    let token = tokens[i++];
+    if (!isCommandToken(token)) {
+      continue;
+    }
+    const relative = token === token.toLowerCase();
+    const cmd = token.toLowerCase();
+
+    switch (cmd) {
+      case 'm': {
+        const first = readPair(relative);
+        if (!first) break;
+        current = first;
+        subpathStart = { ...current };
+        addPoint(current);
+        flushLineTos(relative);
+        break;
+      }
+      case 'l': {
+        flushLineTos(relative);
+        break;
+      }
+      case 'h': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const xVal = readNumber();
+          if (!Number.isFinite(xVal)) break;
+          const x = relative ? current.x + xVal : xVal;
+          current = { x, y: current.y };
+          addPoint(current);
+        }
+        break;
+      }
+      case 'v': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const yVal = readNumber();
+          if (!Number.isFinite(yVal)) break;
+          const y = relative ? current.y + yVal : yVal;
+          current = { x: current.x, y };
+          addPoint(current);
+        }
+        break;
+      }
+      case 'c': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const c1 = readPair(relative);
+          const c2 = readPair(relative);
+          const end = readPair(relative);
+          if (!c1 || !c2 || !end) break;
+          addPoint(c1);
+          addPoint(c2);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 's': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const c2 = readPair(relative);
+          const end = readPair(relative);
+          if (!c2 || !end) break;
+          addPoint(c2);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'q': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const ctrl = readPair(relative);
+          const end = readPair(relative);
+          if (!ctrl || !end) break;
+          addPoint(ctrl);
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 't': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const end = readPair(relative);
+          if (!end) break;
+          current = end;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'a': {
+        while (i < tokens.length && !isCommandToken(tokens[i])) {
+          const rx = readNumber();
+          const ry = readNumber();
+          readNumber();
+          readNumber();
+          readNumber();
+          const xVal = readNumber();
+          const yVal = readNumber();
+          if (!Number.isFinite(rx) || !Number.isFinite(ry) || !Number.isFinite(xVal) || !Number.isFinite(yVal)) break;
+          const target = relative ? { x: current.x + xVal, y: current.y + yVal } : { x: xVal, y: yVal };
+          const absRx = Math.abs(rx);
+          const absRy = Math.abs(ry);
+          addPoint({ x: current.x - absRx, y: current.y - absRy });
+          addPoint({ x: current.x + absRx, y: current.y + absRy });
+          addPoint({ x: target.x - absRx, y: target.y - absRy });
+          addPoint({ x: target.x + absRx, y: target.y + absRy });
+          current = target;
+          addPoint(current);
+        }
+        break;
+      }
+      case 'z': {
+        current = { ...subpathStart };
+        addPoint(current);
+        break;
+      }
+      default: {
+        while (i < tokens.length && !isCommandToken(tokens[i])) i++;
+        break;
+      }
+    }
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY),
+  };
+};
+
 /**
  * Applies explicit width and height to the SVG if provided.
  * @param {string} svg - The SVG string.
@@ -76,7 +254,7 @@ export function normalizeViewBox(svgString, margin = 4) {
   if (!svg || svg.tagName.toLowerCase() !== 'svg') return svgString;
 
   // Consider common node shapes for bounds
-  const shapes = Array.from(svg.querySelectorAll('rect, circle, ellipse, polygon, polyline'));
+  const shapes = Array.from(svg.querySelectorAll('rect, circle, ellipse, polygon, polyline, path'));
   if (shapes.length === 0) return svgString;
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -153,6 +331,16 @@ export function normalizeViewBox(svgString, margin = 4) {
       maxY = Math.max(maxY, clampFinite(py + o.y));
     }
   };
+  const includePath = (el) => {
+    const d = el.getAttribute('d');
+    const bounds = parsePathBounds(d);
+    if (!bounds) return;
+    const o = getAbsOffset(el);
+    minX = Math.min(minX, bounds.x + o.x);
+    minY = Math.min(minY, bounds.y + o.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width + o.x);
+    maxY = Math.max(maxY, bounds.y + bounds.height + o.y);
+  };
 
   for (const el of shapes) {
     const tag = el.tagName.toLowerCase();
@@ -160,6 +348,7 @@ export function normalizeViewBox(svgString, margin = 4) {
     else if (tag === 'circle') includeCircle(el);
     else if (tag === 'ellipse') includeEllipse(el);
     else if (tag === 'polygon' || tag === 'polyline') includePoints(el);
+    else if (tag === 'path') includePath(el);
   }
 
   if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
