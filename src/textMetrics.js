@@ -35,6 +35,10 @@ export async function installTextMetrics(win, options = {}) {
             style: process.env.SEBASTIANJS_FONT_STYLE,
           });
         }
+        // Try registering DejaVu Sans from common locations in Debian based containers
+        try {
+          registerFont('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', { family: 'DejaVu Sans' });
+        } catch (_) { /* ignore if not present */ }
       } catch (_) { /* ignore registration failures */ }
     };
     applyUserFonts();
@@ -81,11 +85,8 @@ export async function installTextMetrics(win, options = {}) {
       const lines = extractLines(el);
       let width = 0;
       for (const ln of lines) width = Math.max(width, ctx.measureText(ln).width || 0);
-      // Approximate height using font metrics if available; fallback to 1.2*size
-      const metrics = ctx.measureText('Mg');
-      const ascent = metrics.actualBoundingBoxAscent || size * 0.8;
-      const descent = metrics.actualBoundingBoxDescent || size * 0.2;
-      const lineH = ascent + descent;
+      // Use a stable 1.2x font-size per line to better match CLI headless Chrome
+      const lineH = size * 1.2;
       const height = Math.max(1, lines.length) * lineH;
       return { width, height };
     };
@@ -94,7 +95,8 @@ export async function installTextMetrics(win, options = {}) {
       const tag = String(this.tagName || '').toLowerCase();
       if (tag === 'text' || tag === 'tspan') {
         const { width, height } = measureTextBlock(this);
-        return { x: 0, y: 0, width: width + 2, height: height + 2 };
+        // Slight padding to approximate CLI bounds
+        return { x: 0, y: 0, width: width + 5, height: height + 5 };
       }
       // If element has width/height, use those
       const wAttr = parseFloat(this.getAttribute?.('width') || 'NaN');

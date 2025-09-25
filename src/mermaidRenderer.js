@@ -8,9 +8,12 @@ export function createMermaidConfig(options = {}) {
     startOnLoad: false,
     securityLevel: 'loose',
     htmlLabels: false,
+    themeVariables: {
+      fontFamily: (options?.themeVariables?.fontFamily) || '"trebuchet ms", Verdana, Arial, sans-serif',
+    },
   };
   if (options && options.theme) initConfig.theme = options.theme;
-  if (options && options.themeVariables) initConfig.themeVariables = options.themeVariables;
+  if (options && options.themeVariables) initConfig.themeVariables = { ...initConfig.themeVariables, ...options.themeVariables };
   if (options && options.themeCSS) initConfig.themeCSS = options.themeCSS;
   return initConfig;
 }

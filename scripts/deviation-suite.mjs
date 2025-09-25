@@ -101,7 +101,7 @@ async function renderWithMmdc(def, { width, height }) {
       securityLevel: 'loose',
       htmlLabels: false,
       flowchart: { htmlLabels: false },
-      themeVariables: { fontFamily: '"trebuchet ms", Verdana, Arial, sans-serif' },
+      themeVariables: { fontFamily: 'DejaVu Sans, Arial, sans-serif' },
     };
     writeFileSync(mermaidCfgPath, JSON.stringify(mermaidCfg), 'utf8');
     const args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', cfgPath, '-c', mermaidCfgPath];

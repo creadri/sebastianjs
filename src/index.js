@@ -2,6 +2,7 @@ import { setupEnvironment } from './env.js';
 import { installTextMetrics } from './textMetrics.js';
 import { ensureDomPurify } from './dompurify.js';
 import { createMermaidConfig, renderDiagram } from './mermaidRenderer.js';
+import { normalizeViewBoxOrigin } from './postProcess.js';
 
 export async function render(definition, options = {}) {
   // Extract layout-related sizing options (numeric or string). These affect
@@ -35,15 +36,8 @@ export async function render(definition, options = {}) {
   // Render the diagram
   const result = await renderDiagram(definition, options, container, mermaid, initConfig);
   let svg = result?.svg || container.innerHTML || '';
+  // Normalize viewBox origin to (0,0) to match CLI tendencies and reduce sub-pixel diffs
+  svg = normalizeViewBoxOrigin(svg);
 
-  try {
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM(svg, { contentType: 'image/svg+xml' });
-    const root = dom.window.document.documentElement;
-    if (containerWidth) root.setAttribute('width', `${containerWidth}`);
-    if (containerHeight) root.setAttribute('height', `${containerHeight}`);
-    return root.outerHTML;
-  } catch {
-    return svg;
-  }
+  return svg;
 }
