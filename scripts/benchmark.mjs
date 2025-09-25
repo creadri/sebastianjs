@@ -11,6 +11,7 @@ import { ensurePuppeteerConfigArg } from './mmdc-wrapper.mjs';
 const SAMPLES_DIR = 'samples/mermaid-demos';
 const README = 'README.md';
 const MMDC_CMD = 'mmdc'; // Expected mermaid-cli command in PATH
+const PER_SAMPLE_TIMEOUT_MS = parseInt(process.env.BENCHMARK_TIMEOUT_MS || '30000', 10);
 
 async function listSamples(dir) {
   const out = [];
@@ -25,12 +26,90 @@ async function listSamples(dir) {
   return out.sort();
 }
 
+// --- Diagram-type detection & filtering (like deviation-suite) ---
+const DEFAULT_ALLOWED = [
+  'graph',
+  'flowchart',
+  'sequenceDiagram',
+  'classDiagram',
+  'erDiagram',
+  'gantt',
+  'pie',
+  'journey',
+  'stateDiagram', // includes stateDiagram-v2
+  'gitGraph',
+  'quadrantChart',
+];
+
+function getFirstKeyword(def) {
+  const lines = def.split(/\r?\n/);
+  let inFrontmatter = false;
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx];
+    const trimmed = (raw || '').trim();
+    if (idx === 0 && trimmed === '---') { inFrontmatter = true; continue; }
+    if (inFrontmatter) { if (trimmed === '---') inFrontmatter = false; continue; }
+    if (!trimmed) continue;
+    if (trimmed.startsWith('%%')) continue; // mermaid comment
+    const m = trimmed.match(/^([A-Za-z][A-Za-z-]*)\b/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+function detectDiagramType(def) {
+  const kw = getFirstKeyword(def);
+  if (kw === 'stateDiagram-v2') return 'stateDiagram';
+  if (kw) return kw;
+  // Heuristic: any non-comment line starting with graph|flowchart
+  const lines = def.split(/\r?\n/);
+  let inFrontmatter = false;
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = (lines[idx] || '').trim();
+    if (idx === 0 && line === '---') { inFrontmatter = true; continue; }
+    if (inFrontmatter) { if (line === '---') inFrontmatter = false; continue; }
+    if (!line || line.startsWith('%%')) continue;
+    if (/^(graph|flowchart)\s/i.test(line)) return line.split(/\s+/)[0];
+  }
+  return '';
+}
+
+function parseArgs(argv) {
+  const out = { allow: null, deny: null, onlyStable: false, verbose: false, list: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--allow' || a === '--types') {
+      const val = argv[++i] || '';
+      const list = val.split(',').map(s => s.trim()).filter(Boolean);
+      out.allow = list.length ? list : null;
+    } else if (a === '--deny') {
+      const val = argv[++i] || '';
+      const list = val.split(',').map(s => s.trim()).filter(Boolean);
+      out.deny = list.length ? list : null;
+    } else if (a === '--only-stable') {
+      out.onlyStable = true;
+    } else if (a === '-v' || a === '--verbose') {
+      out.verbose = true;
+    } else if (a === '--list-types' || a === '--list') {
+      out.list = true;
+    }
+  }
+  return out;
+}
+
 function hrtimeMs() { return Number(process.hrtime.bigint() / 1000000n); }
 
-async function timeAsync(fn) {
+async function timeAsync(fn, timeoutMs = PER_SAMPLE_TIMEOUT_MS) {
   const start = hrtimeMs();
-  try { await fn(); return { ms: hrtimeMs() - start, ok: true }; }
-  catch (e) { return { ms: hrtimeMs() - start, ok: false, error: e }; }
+  try {
+    await Promise.race([
+      fn(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+    ]);
+    return { ms: hrtimeMs() - start, ok: true };
+  } catch (e) {
+    return { ms: hrtimeMs() - start, ok: false, error: e };
+  }
 }
 
 async function hasMmdc() {
@@ -64,12 +143,19 @@ async function benchmarkMmdc(file) {
   args = await ensurePuppeteerConfigArg(args);
     const env = { ...process.env };
     const p = spawn(MMDC_CMD, args, { stdio: 'ignore', env });
+    let done = false;
+    const killer = setTimeout(() => {
+      if (done) return;
+      try { p.kill('SIGKILL'); } catch {}
+    }, PER_SAMPLE_TIMEOUT_MS);
     p.on('error', async (err) => {
+      done = true; clearTimeout(killer);
       try { await unlink(tmpOut); } catch {}
       try { await unlink(pptrCfgPath); } catch {}
       reject(err);
     });
     p.on('exit', async (code) => {
+      done = true; clearTimeout(killer);
       try { await unlink(tmpOut); } catch {}
       try { await unlink(pptrCfgPath); } catch {}
       if (code === 0) resolve(); else reject(new Error(`mmdc exited ${code}`));
@@ -125,24 +211,71 @@ async function updateReadme(seb, mmdc) {
 }
 
 async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  // Build allow/deny lists
+  let allowList = Array.isArray(args.allow) ? args.allow : null; // null = no filtering
+  if (args.onlyStable) allowList = DEFAULT_ALLOWED;
+  const denyList = Array.isArray(args.deny) ? args.deny : null;
+
   const samples = await listSamples(SAMPLES_DIR);
   if (!samples.length) throw new Error('No samples found. Run npm run fetch:samples first.');
+
+  // Optional: just list diagram types distribution
+  if (args.list) {
+    const counts = new Map();
+    for (const f of samples) {
+      let def = '';
+      try { def = await readFile(f, 'utf8'); } catch { continue; }
+      const t = detectDiagramType(def) || 'unknown';
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    console.log('Diagram types:', Object.fromEntries([...counts.entries()].sort()));
+    return;
+  }
 
   const sebResults = [];
   const mmdcAvailable = await hasMmdc();
   const mmdcResults = [];
+  const failures = [];
+  const timeouts = [];
+  const perFile = [];
 
   for (const file of samples) {
+    // Read definition once if filtering is requested
+    let defForType = null;
+    if (allowList) {
+      try { defForType = await readFile(file, 'utf8'); }
+      catch { continue; }
+      const dtype = detectDiagramType(defForType) || '';
+      if (!allowList.includes(dtype)) {
+        // Skip non-allowed diagram types
+        continue;
+      }
+      if (denyList && denyList.includes(dtype)) continue;
+      if (args.verbose) console.log(`[bench] ${dtype}: ${file}`);
+    }
     const seb = await benchmarkSebastian(file); sebResults.push(seb);
+    if (!seb.ok) {
+      failures.push({ tool: 'sebastianjs', file, error: seb.error?.message || String(seb.error) });
+      if (seb.error?.message === 'timeout') timeouts.push({ tool: 'sebastianjs', file });
+    }
     if (mmdcAvailable) {
       const mm = await benchmarkMmdc(file); mmdcResults.push(mm);
+      if (!mm.ok) {
+        failures.push({ tool: 'mmdc', file, error: mm.error?.message || String(mm.error) });
+        if (mm.error?.message === 'timeout') timeouts.push({ tool: 'mmdc', file });
+      }
     }
+    perFile.push({ file, seb, mmdc: mmdcResults[mmdcResults.length - 1] });
   }
 
   const sebSummary = summarize('sebastianjs', sebResults);
   const mmdcSummary = mmdcAvailable ? summarize('mermaid-cli', mmdcResults) : null;
   await updateReadme(sebSummary, mmdcSummary);
-  console.log('Benchmark complete:', sebSummary, mmdcSummary || '(mermaid-cli missing)');
+  const baseMsg = allowList ? `Benchmark complete (filtered types: ${allowList.join(',')})` : 'Benchmark complete';
+  console.log(baseMsg, sebSummary, mmdcSummary || '(mermaid-cli missing)');
+  if (failures.length) console.warn('Failures:', failures.slice(0, 10));
+  if (timeouts.length) console.warn('Timeouts:', timeouts.slice(0, 10));
 }
 
 

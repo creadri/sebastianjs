@@ -120,7 +120,7 @@ Demo files where taken from mermaid-js/mermaid repository
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2025-09-05T07:34:52.990Z_
+_Last updated: 2025-09-25T12:26:58.647Z_
 
 Rendering all sample diagrams (count: 228).
 
@@ -131,11 +131,11 @@ Rendering all sample diagrams (count: 228).
 | Metric | sebastianjs | mermaid-cli |
 | --- | --- | --- |
 | Samples | 228 | 228 |
-| Successful | 198 | 224 |
-| Avg ms | 83.50 | 2247.21 |
-| Total ms | 19039.00 | 512363.00 |
-| Min ms | 8.00 | 2093.00 |
-| Max ms | 995.00 | 3067.00 |
+| Successful | 199 | 224 |
+| Avg ms | 84.81 | 1960.71 |
+| Total ms | 19336.00 | 447043.00 |
+| Min ms | 8.00 | 1750.00 |
+| Max ms | 1325.00 | 2659.00 |
 
 ### Mermaid Graph
 
@@ -145,7 +145,7 @@ Rendering all sample diagrams (count: 228).
 xychart
   title "Average Render Time (ms)"
   x-axis [sebastianjs, mermaid-cli]
-  bar [83.50, 2247.21]
+  bar [84.81, 1960.71]
 ```
 
 <!-- BENCHMARK_END -->

@@ -38,6 +38,15 @@ export async function render(definition, options = {}) {
   let svg = result?.svg || container.innerHTML || '';
   // Normalize viewBox origin to (0,0) to match CLI tendencies and reduce sub-pixel diffs
   svg = normalizeViewBoxOrigin(svg);
-
-  return svg;
+  // Apply explicit width/height attributes when provided (CLI expects these)
+  try {
+    const { JSDOM } = await import('jsdom');
+    const dom = new JSDOM(svg, { contentType: 'image/svg+xml' });
+    const root = dom.window.document.documentElement;
+    if (containerWidth != null) root.setAttribute('width', `${containerWidth}`);
+    if (containerHeight != null) root.setAttribute('height', `${containerHeight}`);
+    return root.outerHTML;
+  } catch {
+    return svg;
+  }
 }
