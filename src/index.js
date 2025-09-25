@@ -36,7 +36,6 @@ export async function render(definition, options = {}) {
   const result = await renderDiagram(definition, options, container, mermaid, initConfig);
   let svg = result?.svg || container.innerHTML || '';
 
-  // Intentionally no normalizeViewBox or auto-size: default behavior only
   try {
     const { JSDOM } = await import('jsdom');
     const dom = new JSDOM(svg, { contentType: 'image/svg+xml' });

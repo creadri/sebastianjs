@@ -8,7 +8,6 @@ export function createMermaidConfig(options = {}) {
     startOnLoad: false,
     securityLevel: 'loose',
     htmlLabels: false,
-    flowchart: { htmlLabels: false },
   };
   if (options && options.theme) initConfig.theme = options.theme;
   if (options && options.themeVariables) initConfig.themeVariables = options.themeVariables;
@@ -37,13 +36,6 @@ export async function renderDiagram(definition, options, container, mermaid, ini
         // Re-initialize with a simpler curve and extra spacing to avoid degenerate paths
         mermaid.initialize({
           ...initConfig,
-          flowchart: {
-            ...(initConfig.flowchart || {}),
-            curve: 'linear',
-            nodeSpacing: 60,
-            rankSpacing: 60,
-            padding: 12,
-          },
         });
         result = await mermaid.render('graph', definition, container);
       } catch (err2) {
