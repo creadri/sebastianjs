@@ -1,0 +1,541 @@
+{
+  "environment": "chrome",
+  "definition": "graph TD\nA[myClass1] --> B[default] & C[default]\nB[default] & C[default] --> D[myClass2]\nclassDef default stroke-width:2px,fill:none,stroke:silver\nclassDef node color:red\nclassDef myClass1 color:#0000ff\nclassDef myClass2 stroke:#0000ff,fill:#ccccff\nclass A myClass1\nclass D myClass2",
+  "callCount": 26,
+  "calls": [
+    {
+      "callId": 0,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\">myClass1</div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 77.328125,
+        "height": 19
+      },
+      "duration": 1.5999999998603016,
+      "timestamp": 1759392259977
+    },
+    {
+      "callId": 1,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\">default</div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 56.296875,
+        "height": 19
+      },
+      "duration": 0.19999999995343387,
+      "timestamp": 1759392259978
+    },
+    {
+      "callId": 2,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\">default</div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 56.296875,
+        "height": 19
+      },
+      "duration": 0.09999999986030161,
+      "timestamp": 1759392259979
+    },
+    {
+      "callId": 3,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\">myClass2</div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 77.328125,
+        "height": 19
+      },
+      "duration": 0.09999999986030161,
+      "timestamp": 1759392259979
+    },
+    {
+      "callId": 4,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass1</span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.30000000004656613,
+      "timestamp": 1759392259985
+    },
+    {
+      "callId": 5,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.19999999995343387,
+      "timestamp": 1759392259986
+    },
+    {
+      "callId": 6,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259987
+    },
+    {
+      "callId": 7,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass2</span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 8,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass1</span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 77.328125,
+        "height": 19
+      },
+      "duration": 0,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 9,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 56.296875,
+        "height": 19
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 10,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 56.296875,
+        "height": 19
+      },
+      "duration": 0,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 11,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass2</span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 20,
+        "width": 77.328125,
+        "height": 19
+      },
+      "duration": 0.09999999986030161,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 12,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "rect",
+        "id": "",
+        "classes": "basic label-container",
+        "html": "<rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-46.1640625\" y=\"-17\" width=\"92.328125\" height=\"34\"></rect>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": -46.1640625,
+        "y": -17,
+        "width": 92.328125,
+        "height": 34
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 13,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "rect",
+        "id": "",
+        "classes": "basic label-container",
+        "html": "<rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-35.6484375\" y=\"-17\" width=\"71.296875\" height=\"34\"></rect>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": -35.6484375,
+        "y": -17,
+        "width": 71.296875,
+        "height": 34
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 14,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "rect",
+        "id": "",
+        "classes": "basic label-container",
+        "html": "<rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-35.6484375\" y=\"-17\" width=\"71.296875\" height=\"34\"></rect>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": -35.6484375,
+        "y": -17,
+        "width": 71.296875,
+        "height": 34
+      },
+      "duration": 0,
+      "timestamp": 1759392259988
+    },
+    {
+      "callId": 15,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "rect",
+        "id": "",
+        "classes": "basic label-container",
+        "html": "<rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-46.1640625\" y=\"-17\" width=\"92.328125\" height=\"34\"></rect>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": -46.1640625,
+        "y": -17,
+        "width": 92.328125,
+        "height": 34
+      },
+      "duration": 0,
+      "timestamp": 1759392259989
+    },
+    {
+      "callId": 16,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.19999999995343387,
+      "timestamp": 1759392259989
+    },
+    {
+      "callId": 17,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 35,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0,
+      "timestamp": 1759392259989
+    },
+    {
+      "callId": 18,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259990
+    },
+    {
+      "callId": 19,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 35,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0,
+      "timestamp": 1759392259990
+    },
+    {
+      "callId": 20,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259990
+    },
+    {
+      "callId": 21,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 35,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0,
+      "timestamp": 1759392259990
+    },
+    {
+      "callId": 22,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "foreignobject",
+        "id": "",
+        "classes": {},
+        "html": "<foreignObject><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392259991
+    },
+    {
+      "callId": 23,
+      "method": "Element.getBoundingClientRect",
+      "element": {
+        "tag": "div",
+        "id": "",
+        "classes": "",
+        "html": "<div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div>",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 20,
+        "y": 35,
+        "width": 0,
+        "height": 0
+      },
+      "duration": 0,
+      "timestamp": 1759392259991
+    },
+    {
+      "callId": 24,
+      "method": "SVGGraphicsElement.getBBox",
+      "element": {
+        "tag": "svg",
+        "id": "profiled-diagram",
+        "classes": {},
+        "html": "<svg id=\"profiled-diagram\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><style>#profiled-diagram{font-family:DejaVu Sans,Arial,sans-serif;font-size:16px;f...",
+        "computedFont": null
+      },
+      "args": [],
+      "result": {
+        "x": 0,
+        "y": 0,
+        "width": 192.59375,
+        "height": 202
+      },
+      "duration": 0.10000000009313226,
+      "timestamp": 1759392260004
+    },
+    {
+      "callId": 25,
+      "method": "Element.getAttribute",
+      "element": {
+        "tag": "svg",
+        "id": "profiled-diagram",
+        "classes": {},
+        "html": "<svg id=\"profiled-diagram\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: 208.59375px;\" viewBox=\"-8 -8 208.59375 218\" role=\"graphics-docum...",
+        "computedFont": null
+      },
+      "args": [
+        "id"
+      ],
+      "result": "profiled-diagram",
+      "duration": 0,
+      "timestamp": 1759392260005
+    }
+  ],
+  "summary": {
+    "totalCalls": 26,
+    "methodCounts": {
+      "Element.getBoundingClientRect": 12,
+      "SVGGraphicsElement.getBBox": 13,
+      "Element.getAttribute": 1
+    },
+    "elementCounts": {
+      "div": 12,
+      "foreignobject": 8,
+      "rect": 4,
+      "svg": 2
+    },
+    "totalDuration": 3.7000000001862645,
+    "averageDuration": 0.14230769231485632
+  },
+  "svg": "<svg id=\"profiled-diagram\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: 208.59375px;\" viewBox=\"-8 -8 208.59375 218\" role=\"graphics-document document\" aria-roledescription=\"flowchart-v2\"><style>#profiled-diagram{font-family:DejaVu Sans,Arial,sans-serif;font-size:16px;fill:#333;}#profiled-diagram .error-icon{fill:#552222;}#profiled-diagram .error-text{fill:#552222;stroke:#552222;}#profiled-diagram .edge-thickness-normal{stroke-width:2px;}#profiled-diagram .edge-thickness-thick{stroke-width:3.5px;}#profiled-diagram .edge-pattern-solid{stroke-dasharray:0;}#profiled-diagram .edge-pattern-dashed{stroke-dasharray:3;}#profiled-diagram .edge-pattern-dotted{stroke-dasharray:2;}#profiled-diagram .marker{fill:#333333;stroke:#333333;}#profiled-diagram .marker.cross{stroke:#333333;}#profiled-diagram svg{font-family:DejaVu Sans,Arial,sans-serif;font-size:16px;}#profiled-diagram .label{font-family:DejaVu Sans,Arial,sans-serif;color:#333;}#profiled-diagram .cluster-label text{fill:#333;}#profiled-diagram .cluster-label span,#profiled-diagram p{color:#333;}#profiled-diagram .label text,#profiled-diagram span,#profiled-diagram p{fill:#333;color:#333;}#profiled-diagram .node rect,#profiled-diagram .node circle,#profiled-diagram .node ellipse,#profiled-diagram .node polygon,#profiled-diagram .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#profiled-diagram .flowchart-label text{text-anchor:middle;}#profiled-diagram .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#profiled-diagram .node .label{text-align:center;}#profiled-diagram .node.clickable{cursor:pointer;}#profiled-diagram .arrowheadPath{fill:#333333;}#profiled-diagram .edgePath .path{stroke:#333333;stroke-width:2.0px;}#profiled-diagram .flowchart-link{stroke:#333333;fill:none;}#profiled-diagram .edgeLabel{background-color:#e8e8e8;text-align:center;}#profiled-diagram .edgeLabel rect{opacity:0.5;background-color:#e8e8e8;fill:#e8e8e8;}#profiled-diagram .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#profiled-diagram .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#profiled-diagram .cluster text{fill:#333;}#profiled-diagram .cluster span,#profiled-diagram p{color:#333;}#profiled-diagram div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:DejaVu Sans,Arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#profiled-diagram .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#profiled-diagram :root{--mermaid-font-family:\"trebuchet ms\",verdana,arial,sans-serif;}#profiled-diagram .default>*{stroke-width:2px!important;fill:none!important;stroke:silver!important;}#profiled-diagram .default span{stroke-width:2px!important;fill:none!important;stroke:silver!important;}#profiled-diagram .node>*{color:red!important;}#profiled-diagram .node span{color:red!important;}#profiled-diagram .node tspan{fill:red!important;}#profiled-diagram .myClass1>*{color:#0000ff!important;}#profiled-diagram .myClass1 span{color:#0000ff!important;}#profiled-diagram .myClass1 tspan{fill:#0000ff!important;}#profiled-diagram .myClass2>*{stroke:#0000ff!important;fill:#ccccff!important;}#profiled-diagram .myClass2 span{stroke:#0000ff!important;fill:#ccccff!important;}</style><g><marker id=\"profiled-diagram_flowchart-pointEnd\" class=\"marker flowchart\" viewBox=\"0 0 10 10\" refX=\"6\" refY=\"5\" markerUnits=\"userSpaceOnUse\" markerWidth=\"12\" markerHeight=\"12\" orient=\"auto\"><path d=\"M 0 0 L 10 5 L 0 10 z\" class=\"arrowMarkerPath\" style=\"stroke-width: 1; stroke-dasharray: 1, 0;\"></path></marker><marker id=\"profiled-diagram_flowchart-pointStart\" class=\"marker flowchart\" viewBox=\"0 0 10 10\" refX=\"4.5\" refY=\"5\" markerUnits=\"userSpaceOnUse\" markerWidth=\"12\" markerHeight=\"12\" orient=\"auto\"><path d=\"M 0 5 L 10 10 L 10 0 z\" class=\"arrowMarkerPath\" style=\"stroke-width: 1; stroke-dasharray: 1, 0;\"></path></marker><marker id=\"profiled-diagram_flowchart-circleEnd\" class=\"marker flowchart\" viewBox=\"0 0 10 10\" refX=\"11\" refY=\"5\" markerUnits=\"userSpaceOnUse\" markerWidth=\"11\" markerHeight=\"11\" orient=\"auto\"><circle cx=\"5\" cy=\"5\" r=\"5\" class=\"arrowMarkerPath\" style=\"stroke-width: 1; stroke-dasharray: 1, 0;\"></circle></marker><marker id=\"profiled-diagram_flowchart-circleStart\" class=\"marker flowchart\" viewBox=\"0 0 10 10\" refX=\"-1\" refY=\"5\" markerUnits=\"userSpaceOnUse\" markerWidth=\"11\" markerHeight=\"11\" orient=\"auto\"><circle cx=\"5\" cy=\"5\" r=\"5\" class=\"arrowMarkerPath\" style=\"stroke-width: 1; stroke-dasharray: 1, 0;\"></circle></marker><marker id=\"profiled-diagram_flowchart-crossEnd\" class=\"marker cross flowchart\" viewBox=\"0 0 11 11\" refX=\"12\" refY=\"5.2\" markerUnits=\"userSpaceOnUse\" markerWidth=\"11\" markerHeight=\"11\" orient=\"auto\"><path d=\"M 1,1 l 9,9 M 10,1 l -9,9\" class=\"arrowMarkerPath\" style=\"stroke-width: 2; stroke-dasharray: 1, 0;\"></path></marker><marker id=\"profiled-diagram_flowchart-crossStart\" class=\"marker cross flowchart\" viewBox=\"0 0 11 11\" refX=\"-1\" refY=\"5.2\" markerUnits=\"userSpaceOnUse\" markerWidth=\"11\" markerHeight=\"11\" orient=\"auto\"><path d=\"M 1,1 l 9,9 M 10,1 l -9,9\" class=\"arrowMarkerPath\" style=\"stroke-width: 2; stroke-dasharray: 1, 0;\"></path></marker><g class=\"root\"><g class=\"clusters\"></g><g class=\"edgePaths\"><path d=\"M71.749,34L65.732,38.167C59.715,42.333,47.682,50.667,41.665,58.117C35.648,65.567,35.648,72.133,35.648,75.417L35.648,78.7\" id=\"L-A-B-0\" class=\" edge-thickness-normal edge-pattern-solid flowchart-link LS-A LE-B\" style=\"fill:none;\" marker-end=\"url(#profiled-diagram_flowchart-pointEnd)\"></path><path d=\"M120.845,34L126.862,38.167C132.878,42.333,144.912,50.667,150.929,58.117C156.945,65.567,156.945,72.133,156.945,75.417L156.945,78.7\" id=\"L-A-C-0\" class=\" edge-thickness-normal edge-pattern-solid flowchart-link LS-A LE-C\" style=\"fill:none;\" marker-end=\"url(#profiled-diagram_flowchart-pointEnd)\"></path><path d=\"M35.648,118L35.648,122.167C35.648,126.333,35.648,134.667,40.939,142.497C46.229,150.328,56.81,157.655,62.101,161.319L67.392,164.983\" id=\"L-B-D-0\" class=\" edge-thickness-normal edge-pattern-solid flowchart-link LS-B LE-D\" style=\"fill:none;\" marker-end=\"url(#profiled-diagram_flowchart-pointEnd)\"></path><path d=\"M156.945,118L156.945,122.167C156.945,126.333,156.945,134.667,151.655,142.497C146.364,150.328,135.783,157.655,130.493,161.319L125.202,164.983\" id=\"L-C-D-0\" class=\" edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-D\" style=\"fill:none;\" marker-end=\"url(#profiled-diagram_flowchart-pointEnd)\"></path></g><g class=\"edgeLabels\"><g class=\"edgeLabel\"><g class=\"label\" transform=\"translate(0, 0)\"><foreignObject width=\"0\" height=\"0\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject></g></g><g class=\"edgeLabel\"><g class=\"label\" transform=\"translate(0, 0)\"><foreignObject width=\"0\" height=\"0\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject></g></g><g class=\"edgeLabel\"><g class=\"label\" transform=\"translate(0, 0)\"><foreignObject width=\"0\" height=\"0\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject></g></g><g class=\"edgeLabel\"><g class=\"label\" transform=\"translate(0, 0)\"><foreignObject width=\"0\" height=\"0\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"edgeLabel\"></span></div></foreignObject></g></g></g><g class=\"nodes\"><g class=\"node default myClass1 flowchart-label\" id=\"flowchart-A-0\" data-node=\"true\" data-id=\"A\" transform=\"translate(96.296875, 17)\"><rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-46.1640625\" y=\"-17\" width=\"92.328125\" height=\"34\"></rect><g class=\"label\" style=\"\" transform=\"translate(-38.6640625, -9.5)\"><rect></rect><foreignObject width=\"77.328125\" height=\"19\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass1</span></div></foreignObject></g></g><g class=\"node default default flowchart-label\" id=\"flowchart-B-1\" data-node=\"true\" data-id=\"B\" transform=\"translate(35.6484375, 101)\"><rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-35.6484375\" y=\"-17\" width=\"71.296875\" height=\"34\"></rect><g class=\"label\" style=\"\" transform=\"translate(-28.1484375, -9.5)\"><rect></rect><foreignObject width=\"56.296875\" height=\"19\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div></foreignObject></g></g><g class=\"node default default flowchart-label\" id=\"flowchart-C-2\" data-node=\"true\" data-id=\"C\" transform=\"translate(156.9453125, 101)\"><rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-35.6484375\" y=\"-17\" width=\"71.296875\" height=\"34\"></rect><g class=\"label\" style=\"\" transform=\"translate(-28.1484375, -9.5)\"><rect></rect><foreignObject width=\"56.296875\" height=\"19\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">default</span></div></foreignObject></g></g><g class=\"node default myClass2 flowchart-label\" id=\"flowchart-D-5\" data-node=\"true\" data-id=\"D\" transform=\"translate(96.296875, 185)\"><rect class=\"basic label-container\" style=\"\" rx=\"0\" ry=\"0\" x=\"-46.1640625\" y=\"-17\" width=\"92.328125\" height=\"34\"></rect><g class=\"label\" style=\"\" transform=\"translate(-38.6640625, -9.5)\"><rect></rect><foreignObject width=\"77.328125\" height=\"19\"><div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"display: inline-block; white-space: nowrap;\"><span class=\"nodeLabel\">myClass2</span></div></foreignObject></g></g></g></g></g></svg>"
+}
