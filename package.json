@@ -40,10 +40,12 @@
     "access": "public"
   },
   "dependencies": {
+    "@svgdotjs/svg.js": "^3.2.5",
     "canvas": ">=2.11.2",
     "dompurify": ">=3.2.6",
     "jsdom": ">=24.1.0",
-    "mermaid": ">=10.11.10"
+    "mermaid": ">=10.11.10",
+    "svgdom": "^0.1.22"
   },
   "devDependencies": {
     "@babel/core": ">=7.28.3",
