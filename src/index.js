@@ -9,7 +9,7 @@ export async function render(definition, options = {}) {
   const containerHeight = options.height || 600;
 
   // Set up the environment
-  const { window, document } = sebDOM();
+  const { window, document } = await sebDOM(containerWidth, containerHeight);
   
   // Import mermaid only after environment is ready
   const { default: mermaid } = await import('mermaid');

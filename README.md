@@ -6,9 +6,15 @@ Sebastian :crab: is the little mermaid :mermaid: buttler/friend/assistant. And i
 
 ## Initial use case
 
-I was tired of needing to use a headless browser in order to render mermaid diagrams. I tried different ways including mermaidjs-cli that still requires puppeter and a headless browser.
+Got attached in generating mermaid diagrams for different projects. But quickly got stuck and amazed as well on how well mermaidjs is supported throughout a lot of tools.
 
-Browsing some of mermaidjs requests I found some that are demanding exactly this. So this is an attempt at fixing a problem not a lot of people have.
+One key problem tough is that when it comes to exporting, not a lot of applications exports the mermaid diagrams well.
+
+In trying to create a simple application to solve this problem I came accross another problem: it requires a browser to render.
+
+Even mermaid-cli requires a headless browser and relies on puppeter. This is fine on a lot of levels but I think there should be an easier solution.
+
+This project is therefore born trying to render mermaid diagrams inside nodejs without requiring the whole browser and DOM.
 
 ## Goal
 
@@ -17,6 +23,16 @@ Use default mermaidjs implementation, this is not a fork. It is designed to rema
 Focus is made on implementing SVG exports.
 
 As this doesn't require a headless browser, it should be faster to render.
+
+## How are things so far
+
+### November 2025
+
+Not Great, mermaid uses a lot of DOM features to perform the layout. So far the goal was to: let an empty shell of a DOM do the math wrongly and get a very wrong layout. Then post process the results and try to mimic the looks. It worked for some demos but I don't think it's the right approach. Looking into svgdom project in order to have a more detailled and implemented DOM.
+
+### August 2025
+
+Doing great, already got some results and the benchmarks are showing obvious benefits in rendering with sebastianjs instead of mermaid-cli.
 
 ## Installation
 
@@ -93,7 +109,7 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [ ] Fix positioning and sizing issues
 - [ ] Release First viable option
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
-- [ ] Create a benchmark to assess the difference in performance compared to mermaid-cli
+- [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 
 
 ## Limitations
@@ -116,6 +132,10 @@ Src: https://www.npmjs.com/package/canvas
 
 Demo files where taken from mermaid-js/mermaid repository
 : [Mermaid MIT License](https://github.com/mermaid-js/mermaid?tab=MIT-1-ov-file)
+
+Thanks for the fonts under `fonts/` with their licenses:
+- Noto Sans: [OFL](./fonts/Noto_Sans/OFL.txt)
+- Open Sans: [OFL](./fonts/Open_Sans/OFL.txt)
 
 <!-- BENCHMARK_START -->
 ## Benchmark

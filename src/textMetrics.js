@@ -11,7 +11,7 @@ const defineProto = (ctor, name, fn) => {
 
 const isCommandToken = (token) => /^[a-zA-Z]$/.test(token);
 
-const parsePathBounds = (d) => {
+const   = (d) => {
   if (!d || typeof d !== 'string') return null;
   const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g);
   if (!tokens || tokens.length === 0) return null;
