@@ -6,9 +6,15 @@ Sebastian :crab: is the little mermaid :mermaid: buttler/friend/assistant. And i
 
 ## Initial use case
 
-I was tired of needing to use a headless browser in order to render mermaid diagrams. I tried different ways including mermaidjs-cli that still requires puppeter and a headless browser.
+Got attached in generating mermaid diagrams for different projects. But quickly got stuck and amazed as well on how well mermaidjs is supported throughout a lot of tools.
 
-Browsing some of mermaidjs requests I found some that are demanding exactly this. So this is an attempt at fixing a problem not a lot of people have.
+One key problem tough is that when it comes to exporting, not a lot of applications exports the mermaid diagrams well.
+
+In trying to create a simple application to solve this problem I came accross another problem: it requires a browser to render.
+
+Even mermaid-cli requires a headless browser and relies on puppeter. This is fine on a lot of levels but I think there should be an easier solution.
+
+This project is therefore born trying to render mermaid diagrams inside nodejs without requiring the whole browser and DOM.
 
 ## Goal
 
@@ -17,6 +23,70 @@ Use default mermaidjs implementation, this is not a fork. It is designed to rema
 Focus is made on implementing SVG exports.
 
 As this doesn't require a headless browser, it should be faster to render.
+
+## How are things so far
+
+### August 2026
+
+The rewrite landed. Instead of letting a hollow DOM compute a wrong layout and
+patching the SVG afterwards, the DOM now measures correctly in the first place:
+jsdom hosts the document and svgdom's geometry engine (vendored, driven by
+fontkit) answers `getBBox`, `getComputedTextLength`, `getCTM` and friends.
+
+Layout in mermaid is pure JS (dagre/ELK) — it was always correct, it was just
+being fed wrong measurements. Fixing the measurements fixed the layout, which
+post-processing structurally could not do: by the time you have the SVG, nodes
+have already been placed from the wrong sizes.
+
+Measured against real Chrome via mermaid-cli, both pinned to `htmlLabels: false`
+and Open Sans:
+
+| diagram | sebastianjs | chrome | Δ width |
+| --- | --- | --- | --- |
+| flowchart TD | 127.3 x 383.3 | 127.4 x 383.4 | 0.08% |
+| flowchart LR | 1050.7 x 170.0 | 1052.1 x 170.0 | 0.13% |
+| sequence | 500.0 x 333.0 | 500.0 x 333.0 | 0.00% |
+| class | 299.2 x 367.0 | 299.7 x 367.0 | 0.17% |
+| state | 121.5 x 358.0 | 121.9 x 358.0 | 0.26% |
+| er | 449.1 x 474.0 | 449.3 x 474.0 | 0.05% |
+
+Individual text runs match Chrome exactly (Δy 0.00, Δx ≤ 0.02, Δheight 0.00).
+Across the full sample corpus — 84 diagrams compared against real Chrome — the
+average absolute node-position deviation is **0.016px**, excluding nine diagrams
+with two documented causes (KaTeX math labels, and one line-breaking case listed
+in `KNOWN_DEVIATIONS`). Regenerate with `node scripts/compare-chrome.mjs` or
+`node scripts/deviation-suite.mjs`.
+
+**Labels use HTML in `<foreignObject>`, as mermaid does by default.** Measuring
+that means modelling the small slice of CSS mermaid actually emits — the label
+markup is 8 tags and 6 properties, and reduces to `width = widest line advance`,
+`height = lines x line-height`. Raw HTML, entities and `<img>` in labels all work.
+
+Set `htmlLabels: false` to emit SVG `<text>` instead:
+
+```js
+const svg = await render(def, { htmlLabels: false });
+```
+
+That matters for **portability**: `<foreignObject>` is not supported by librsvg
+or resvg and only partly by Inkscape, so HTML labels render correctly in a
+browser but can lose every label in a non-browser rasterizer pipeline. The
+`<text>` path renders anywhere, at the cost of showing raw HTML, HTML entities
+and `fa:` icons as literal text.
+
+Images in labels are sized from `data:` URIs and local files. Pass
+`allowRemoteImages: true` to fetch `http(s)` sources — off by default so
+rendering never performs network I/O unasked. Pass `iconPacks` (Iconify JSON,
+e.g. from `@iconify-json/fa6-solid`) to make `fa:` labels resolve to real icons
+instead of literal text.
+
+### November 2025
+
+Not Great, mermaid uses a lot of DOM features to perform the layout. So far the goal was to: let an empty shell of a DOM do the math wrongly and get a very wrong layout. Then post process the results and try to mimic the looks. It worked for some demos but I don't think it's the right approach. Looking into svgdom project in order to have a more detailled and implemented DOM.
+
+### August 2025
+
+Doing great, already got some results and the benchmarks are showing obvious benefits in rendering with sebastianjs instead of mermaid-cli.
 
 ## Installation
 
@@ -37,6 +107,10 @@ const svg = await render(def, {
   theme: 'dark',
   themeVariables: { primaryColor: '#3366ff' },
   themeCSS: '.node rect{ rx:4; ry:4 }',
+  // Viewport hints only — the size of the "page" the diagram is laid out on.
+  // The rendered SVG sizes itself from its own bounding box (width="100%" plus
+  // a max-width style and a viewBox), exactly as mermaid does in a browser and
+  // as mermaid-cli emits.
   width: 800,        // optional (defaults to 800)
   height: 600,       // optional (defaults to 600)
 });
@@ -58,7 +132,8 @@ sebastianjs input.mmd -o output.svg -t dark \
   --theme-vars '{"primaryColor":"#3366ff"}' \
   --theme-css '.node rect{rx:4;ry:4}'
 
-# Set explicit width / height (influences layout + final svg size)
+# Set the viewport the diagram is laid out on. Like mermaid-cli's -w/-H these
+# are layout hints; the emitted SVG still sizes itself from its own bounding box.
 sebastianjs input.mmd -o out.svg -W 1200 -H 700
 ```
 
@@ -72,7 +147,7 @@ npm run fetch:samples
 npm run build:site
 npm run benchmark
 
-# Optional: Run deviation comparison tests (requires mermaid-cli in PATH)
+# Optional: Run deviation comparison tests (mermaid-cli is a devDependency)
 DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js --runInBand
 
 # Run deviation on a single sample
@@ -90,25 +165,50 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [x] Make first render implementation with minimal DOM support for basic flowchart
 - [x] Make a tiny CLI
 - [x] Mermaid theme support
-- [ ] Fix positioning and sizing issues
+- [x] Fix positioning and sizing issues
 - [ ] Release First viable option
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
-- [ ] Create a benchmark to assess the difference in performance compared to mermaid-cli
+- [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 
 
 ## Limitations
 
-Note on accuracy
-: SebastianJS requires node-canvas for accurate, browserless text measurement (no headless browser).
+- **`<foreignObject>` portability.** HTML labels are the default, as in mermaid.
+  librsvg and resvg do not support `foreignObject` and Inkscape only partly does,
+  so if you feed the SVG to a non-browser rasterizer, render with
+  `htmlLabels: false` and accept that raw HTML, HTML entities and `fa:` icons
+  then show as literal text.
+- **Fonts must be available locally.** Text is measured from real font files, so
+  a family that is not registered falls back to a bundled one and measures
+  differently from a machine that has it installed. Open Sans and Noto Sans ship
+  with the package.
+- **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; we do
+  not implement it, so those labels measure as raw TeX source and the diagram is
+  sized wrongly.
+- **Line breaking implements a subset of UAX #14.** Labels wrap at spaces,
+  hyphens, slashes, close punctuation and between CJK characters. Rare cases can
+  land on a different line count than a browser.
+- **Not every diagram type is verified.** The parity suite covers flowchart,
+  sequence, class, state, ER and the other stable types; beta diagrams are
+  rendered but unmeasured.
+- **Two diagram types do not render yet.** `mindmap` fails on a DOM gap and
+  `zenuml` needs its plugin registered. mermaid-cli renders both, so these four
+  samples are ours to fix.
+
+  Of the 292 sample diagrams, 234 render. The other 58 break down as 54 that
+  mermaid-cli fails on too — `samples/` is extracted from mermaid's `main`
+  branch, so it contains newer diagram types (`venn`, `railroad`, `treeView`,
+  `ishikawa`, `wardley`, …) than the installed mermaid supports — and the 4
+  above. Refresh with `npm run fetch:samples`.
 
 ## Dependencies
 
-### Install dependencies for Canvas (Ubuntu/Debian)
-```bash
-sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
-```
+No native build step and no headless browser. Text is measured with
+[fontkit](https://github.com/foliojs/fontkit) and geometry with a vendored copy
+of [svgdom](https://github.com/svgdotjs/svgdom)'s maths, both pure JavaScript.
 
-Src: https://www.npmjs.com/package/canvas
+Earlier versions needed node-canvas, and with it cairo, pango and a compiler
+toolchain. That dependency is gone — `npm install sebastianjs` is enough.
 
 ## Licence
 
@@ -117,35 +217,47 @@ Src: https://www.npmjs.com/package/canvas
 Demo files where taken from mermaid-js/mermaid repository
 : [Mermaid MIT License](https://github.com/mermaid-js/mermaid?tab=MIT-1-ov-file)
 
+Thanks for the fonts under `fonts/` with their licenses:
+- Noto Sans: [OFL](./fonts/Noto_Sans/OFL.txt)
+- Open Sans: [OFL](./fonts/Open_Sans/OFL.txt)
+
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2025-09-25T12:26:58.647Z_
+_Last updated: 2026-08-31T19:41:58.081Z_ · Node v22.23.2
 
-Rendering all sample diagrams (count: 228).
+Rendering 292 sample diagrams from `samples/mermaid-demos`, both renderers on the
+same mermaid config (Open Sans, default HTML labels). Regenerate with `npm run benchmark`.
+
+The comparison is library-versus-CLI, which is what you would actually choose
+between: SebastianJS renders in-process, while mermaid-cli starts Node and a
+headless Chromium for each invocation. That process startup is most of the gap.
 
 
 
-### Summary Table
+Not every sample renders in either tool: sebastianjs failed on 58, mermaid-cli failed on 54. Only successful renders are timed.
+
+
+SebastianJS is **33x faster** per diagram.
+
+### Summary
 
 | Metric | sebastianjs | mermaid-cli |
 | --- | --- | --- |
-| Samples | 228 | 228 |
-| Successful | 199 | 224 |
-| Avg ms | 84.81 | 1960.71 |
-| Total ms | 19336.00 | 447043.00 |
-| Min ms | 8.00 | 1750.00 |
-| Max ms | 1325.00 | 2659.00 |
+| Samples | 292 | 292 |
+| Successful | 234 | 238 |
+| Avg ms | 58.02 | 1932.72 |
+| Total ms | 13577.00 | 459988.00 |
+| Min ms | 3.00 | 1557.00 |
+| Max ms | 419.00 | 2479.00 |
 
-### Mermaid Graph
-
-
+### Average render time
 
 ```mermaid
-xychart
+xychart-beta
   title "Average Render Time (ms)"
   x-axis [sebastianjs, mermaid-cli]
-  bar [84.81, 1960.71]
+  bar [58.02, 1932.72]
 ```
 
 <!-- BENCHMARK_END -->

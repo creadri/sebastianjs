@@ -1,0 +1,19 @@
+---
+config:
+  class:
+    hierarchicalNamespaces: false
+---
+classDiagram
+  namespace Platform {
+    namespace Auth {
+      class UserService {
+        +login()
+      }
+    }
+    namespace Data {
+      class Repository {
+        +find()
+      }
+    }
+  }
+  UserService --> Repository : reads

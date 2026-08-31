@@ -1,0 +1,23 @@
+%%{init: { 'venn': { 'useDebugLayout': true } } }%%
+venn-beta
+  title Many text nodes in debug text layout mode
+  set A["Five nodes"]:18
+    text A1
+    text A2
+    text A3
+    text A4
+    text A5
+  set B["Nine nodes"]:18
+    text B1
+    text B2
+    text B3
+    text B4
+    text B5
+    text B6
+    text B7["Long label"]
+    text "B8 with a long label"
+    text "B9 with a loooooooong label"
+  union A,B["Common"]:3
+    text shared["shared note"]
+  style B4 color:red
+  style B7 color:green

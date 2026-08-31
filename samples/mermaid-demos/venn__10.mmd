@@ -1,0 +1,10 @@
+%%{init: { 'look': 'handDrawn', 'handDrawnSeed': 1 } }%%
+venn-beta
+  title Hand-drawn Three Sets
+  set Frontend
+  set Backend
+  set DevOps
+  union Frontend,Backend["Fullstack"]
+  union Backend,DevOps["Infra"]
+  union Frontend,DevOps["SRE"]
+  union Frontend,Backend,DevOps["All"]

@@ -43,9 +43,13 @@ describe('CLI', () => {
   // Allow Node experimental warnings on stderr
   expect(stdout).toContain('<svg');
   const openTag = stdout.match(/<svg[^>]*>/)?.[0] || '';
+  // The diagram sizes itself from its own bounding box, exactly as mermaid does
+  // in a browser and as mermaid-cli emits: width="100%" plus a max-width style,
+  // with the real dimensions carried by the viewBox. It is deliberately NOT
+  // stamped with the -W/-H viewport values.
   expect(openTag).toContain('viewBox=');
-  expect(openTag).toMatch(/\bwidth=\"800\"/);
-  expect(openTag).toMatch(/\bheight=\"600\"/);
+  expect(openTag).toMatch(/\bwidth="100%"/);
+  expect(openTag).toMatch(/max-width:\s*[\d.]+px/);
   });
 
   test('renders from file to stdout', async () => {
@@ -68,9 +72,19 @@ describe('CLI', () => {
   expect(content).toContain('<svg');
   const tag = content.match(/<svg[^>]*>/)?.[0] || '';
   expect(tag).toContain('viewBox=');
-  expect(tag).toMatch(/\bwidth=\"800\"/);
-  expect(tag).toMatch(/\bheight=\"600\"/);
+  expect(tag).toMatch(/\bwidth="100%"/);
     await fs.unlink(out).catch(() => {});
+  });
+
+  test('-W/-H are viewport hints, not output dimensions', async () => {
+    // Matches mermaid-cli, whose -w/-H set the Puppeteer viewport and leave the
+    // emitted SVG's dimensions untouched.
+    const { code, stdout } = await runCLI(['-', '-W', '1200', '-H', '700'], def);
+    expect(code).toBe(0);
+    const tag = stdout.match(/<svg[^>]*>/)?.[0] || '';
+    expect(tag).toContain('viewBox=');
+    expect(tag).not.toMatch(/\bwidth="1200"/);
+    expect(tag).not.toMatch(/\bheight="700"/);
   });
 
   test('handles missing file with non-zero exit code', async () => {

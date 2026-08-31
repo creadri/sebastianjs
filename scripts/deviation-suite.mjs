@@ -1,13 +1,46 @@
 import { promises as fsp } from 'fs';
-import { join, extname, basename, resolve, isAbsolute, relative } from 'path';
+import { join, extname, basename, resolve, isAbsolute, relative, sep } from 'path';
 import { render } from '../src/index.js';
 import { tmpdir } from 'os';
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { spawnMmdc } from './mmdc-wrapper.mjs';
 
 // ---------------- Configurable Constants ----------------
-export const NORMALIZED_DEVIATION_THRESHOLD = 0.12; // Allow a bit more variance across many diagrams
-export const POSITION_DEVIATION_THRESHOLD = 10; // Raw pixel avg (informational only)
+// `norm` rescales each position set to its OWN bounding box, so it is
+// scale-invariant: a diagram rendered at half size scores zero. It says
+// something about shape but nothing about size, so it is reported for
+// diagnostics and no longer the primary gate.
+export const NORMALIZED_DEVIATION_THRESHOLD = 0.01;
+// Absolute average node-position error, in px, with no alignment applied. This
+// is the meaningful gate, and it doubles as the per-sample failure threshold.
+//
+// Measured 0.042px across the comparison corpus once KNOWN_DEVIATIONS are
+// excluded from the aggregate — they are reported separately so one outlier
+// cannot swing the average with corpus size. Set at 1px: far above the noise,
+// far below anything a real regression would produce.
+export const POSITION_DEVIATION_THRESHOLD = 1;
+export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
+
+/**
+ * Samples with a known, understood deviation. Listing them keeps the gate sharp:
+ * a NEW failure still fails the suite, while these stay visible and reviewable
+ * instead of being hidden under a loosened threshold. Remove an entry when its
+ * cause is fixed — the suite reports any listed sample that has started passing.
+ */
+export const KNOWN_DEVIATIONS = new Map([
+  // Math labels. Mermaid typesets $$...$$ with KaTeX, which we do not implement,
+  // so these labels measure as raw TeX source. A missing feature, not a bug.
+  ...['flowchart__39', 'flowchart__40', 'flowchart__41', 'flowchart__42', 'flowchart__43', 'flowchart__44'].map(
+    (name) => [`samples/mermaid-demos/${name}.mmd`, 'KaTeX math labels are not typeset']
+  ),
+  // One diagram (duplicated in the corpus) whose labels land on one fewer line
+  // than Chrome. Label widths match to 0.008px, so this is the incomplete
+  // UAX #14 subset rather than a measurement error. The empty FontAwesome
+  // placeholder was ruled out as the cause: Chrome measures it 0px wide, as we do.
+  ...['flowchart__9', 'flowchart__10', 'flowchart__49'].map(
+    (name) => [`samples/mermaid-demos/${name}.mmd`, 'line breaking: one fewer line than Chrome on fa: labels']
+  ),
+]);
 export const MAX_SAMPLES = process.env.DEVIATION_MAX_SAMPLES ? parseInt(process.env.DEVIATION_MAX_SAMPLES,10) : Infinity;
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -99,9 +132,13 @@ async function renderWithMmdc(def, { width, height }) {
     const mermaidCfg = {
       startOnLoad: false,
       securityLevel: 'loose',
-      htmlLabels: false,
-      flowchart: { htmlLabels: false },
-      themeVariables: { fontFamily: 'DejaVu Sans, Arial, sans-serif' },
+      htmlLabels: true,
+      flowchart: { htmlLabels: true },
+      // Must match src/index.js's default, or the two sides measure different
+      // fonts and every width differs. Installed for Chrome via fontconfig; see
+      // .devcontainer/setup.sh.
+      fontFamily: 'Open Sans',
+      themeVariables: { fontFamily: 'Open Sans' },
     };
     writeFileSync(mermaidCfgPath, JSON.stringify(mermaidCfg), 'utf8');
     const args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', cfgPath, '-c', mermaidCfgPath];
@@ -325,7 +362,31 @@ async function main(options = {}) {
       }
     }
   }
-  if (MAX_SAMPLES && Number.isFinite(MAX_SAMPLES)) samples = samples.slice(0, MAX_SAMPLES);
+  // Filter by diagram type BEFORE truncating, so DEVIATION_MAX_SAMPLES caps the
+  // number of samples actually compared. Truncating first meant that adding
+  // unsupported beta diagrams to the corpus silently shrank the comparison set.
+  // Callers may pass maxSamples directly: setting process.env after an ESM
+  // import is too late, because imports are hoisted and MAX_SAMPLES is read at
+  // module evaluation.
+  const maxSamples = Number.isFinite(options.maxSamples) ? options.maxSamples : MAX_SAMPLES;
+  if (maxSamples && Number.isFinite(maxSamples)) {
+    const allowed = [];
+    for (const file of samples) {
+      let def;
+      try { def = await fsp.readFile(file, 'utf8'); } catch { continue; }
+      if (isAllowed(def)) allowed.push(file);
+    }
+    // Spread the cap across the whole corpus instead of taking the first N.
+    // Samples are named by type, so an alphabetical prefix is a biased slice:
+    // capping at 40 never reached flowchart__23 and beyond, and reported 0.04px
+    // average deviation while the full corpus was far worse.
+    if (allowed.length > maxSamples) {
+      const stride = allowed.length / maxSamples;
+      samples = Array.from({ length: maxSamples }, (_, i) => allowed[Math.floor(i * stride)]);
+    } else {
+      samples = allowed;
+    }
+  }
 
   const results = [];
   const simpleItems = [];
@@ -361,8 +422,24 @@ async function main(options = {}) {
       }
       continue;
     }
-    const sebPos = extractNodePositions(sebSvg);
-    const cliPos = extractNodePositions(cliSvg);
+    // Parsing is XML-strict, so one malformed SVG used to abort the entire run
+    // with a bare "unexpected close tag" and no indication of which sample or
+    // which side produced it. Record and skip instead.
+    let sebPos, cliPos;
+    try {
+      sebPos = extractNodePositions(sebSvg);
+    } catch (e) {
+      results.push({ file, error: `sebastianjs SVG is not parseable: ${e.message}` });
+      console.error(`  [parse] sebastianjs output for ${file}: ${e.message}`);
+      continue;
+    }
+    try {
+      cliPos = extractNodePositions(cliSvg);
+    } catch (e) {
+      results.push({ file, error: `mermaid-cli SVG is not parseable: ${e.message}` });
+      console.error(`  [parse] mermaid-cli output for ${file}: ${e.message}`);
+      continue;
+    }
     const stats = averageDeviation(sebPos, cliPos, { verbose });
     // Root metrics deviations
     const sebRoot = extractRootMetrics(sebSvg);
@@ -451,11 +528,17 @@ async function main(options = {}) {
   }
 
   // Aggregate
-  const ok = results.filter(r => r.norm !== undefined && Number.isFinite(r.norm));
+  const allOk = results.filter(r => r.norm !== undefined && Number.isFinite(r.norm));
+  // A single known outlier would otherwise swing the average purely with corpus
+  // size — the same sample moved avgRaw from 2.12 to 3.34 when the comparison
+  // set shrank. Known deviations are reported separately instead.
+  const isKnown = (r) => KNOWN_DEVIATIONS.has(relative(process.cwd(), r.file).split(sep).join('/'));
+  const ok = allOk.filter(r => !isKnown(r));
+  const knownOk = allOk.filter(isKnown);
   const avgNorm = ok.reduce((a,r)=>a+r.norm,0)/(ok.length||1);
   const avgRaw = ok.reduce((a,r)=>a+r.raw,0)/(ok.length||1);
   const avgRawTransCorr = ok.reduce((a,r)=>a+(r.rawTransCorr??NaN),0)/(ok.length||1);
-  const failures = ok.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
+  const failures = allOk.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
 
   // Aggregates for size/viewBox deviations
   const widthAbsAvg = avg(ok.map(r => r.sizeDev?.widthAbs));
@@ -476,7 +559,12 @@ async function main(options = {}) {
   }
   const report = {
     samplesProcessed: samples.length,
-    compared: ok.length,
+    compared: allOk.length,
+    comparedExcludingKnown: ok.length,
+    knownDeviations: knownOk.map((r) => ({
+      file: relative(process.cwd(), r.file).split(sep).join('/'),
+      raw: r.raw,
+    })),
     avgNormalizedDeviation: avgNorm,
     avgRawDeviation: avgRaw,
     avgRawTransCorrDeviation: avgRawTransCorr,
@@ -500,8 +588,28 @@ async function main(options = {}) {
   }
   console.log(JSON.stringify(report, null, 2));
 
-  // Export minimal summary for test assertion
-  return { avgNorm, avgRaw, failuresCount: failures.length };
+  // Export minimal summary for test assertion. `compared` matters: when a sample
+  // filter excludes everything, the averages above are 0 and every threshold
+  // trivially passes, so callers must check that something was actually measured.
+  const normalise = (f) => relative(process.cwd(), f).split(sep).join('/');
+  const unexpectedFailures = failures.filter((r) => !KNOWN_DEVIATIONS.has(normalise(r.file)));
+  const failedFiles = new Set(failures.map((r) => normalise(r.file)));
+  const fixed = [...KNOWN_DEVIATIONS.keys()].filter((f) => !failedFiles.has(f));
+  if (fixed.length) {
+    console.error(
+      `  [known] these samples now pass and can be removed from KNOWN_DEVIATIONS: ${fixed.join(', ')}`
+    );
+  }
+
+  return {
+    avgNorm,
+    avgRaw,
+    compared: allOk.length,
+    samplesProcessed: samples.length,
+    viewBoxWidthRel: vbWRelAvg,
+    failuresCount: failures.length,
+    unexpectedFailures: unexpectedFailures.map((r) => normalise(r.file)),
+  };
 }
 
 export async function runDeviationSuite(options) {
