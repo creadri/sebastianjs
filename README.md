@@ -106,6 +106,66 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 - [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 
+## Working State
+
+A manual, visual assessment of each diagram type against mermaid-cli's Chrome
+output, judged on the demo corpus in `samples/mermaid-demos`. This is the
+subjective companion to the automated gate: `npm run deviation` measures node
+placement (currently 0.016px mean deviation), but a diagram can be geometrically
+exact and still look wrong, which is what this table is for.
+
+| State | Meaning |
+|---|---|
+| `perfect` | Indistinguishable from Chrome |
+| `ok` | Correct; any difference is invisible in practice |
+| `mostly-fine` | Correct overall, with minor spacing or alignment differences |
+| `incorrect` | Renders, but the result is visibly wrong |
+| `error` | Does not render |
+
+Nothing is rated `perfect` yet. Of 31 types: 15 `ok`, 5 `mostly-fine`,
+2 `incorrect`, 9 `error` — and 6 of those 9 are types the pinned mermaid does
+not have at all, so they are unassessed rather than broken.
+
+| Mermaid Type | State | Notes |
+|---|---|---|
+| dataflowchart | error | Renders on the pinned corpus (0/2 samples fail) — worth re-checking |
+| ishikawa | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| mindmap | error | cytoscape's grid layout throws (`Cannot read properties of undefined (reading 'h')`) |
+| railroad | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| treeView | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| usecase | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| venn | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| wardley | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| zenuml | error | Needs `@mermaid-js/mermaid-zenuml` registered; mermaid-cli bundles it, we do not |
+| c4context | incorrect | |
+| gantt | incorrect | |
+| architecture | mostly-fine | |
+| classchart | mostly-fine | 1 of 12 demos is invalid syntax; mermaid-cli rejects it too |
+| flowchart-elk | mostly-fine | |
+| state | mostly-fine | |
+| xychart | mostly-fine | |
+| block | ok | |
+| er | ok | |
+| er-multiline | ok | |
+| flowchart | ok | 63 demos, the largest group in the corpus |
+| git | ok | |
+| journey | ok | |
+| packet | ok | |
+| pie | ok | |
+| quadrantchart | ok | |
+| radar | ok | |
+| requirements | ok | |
+| sankey | ok | |
+| sequence | ok | |
+| timeline | ok | |
+| treemap | ok | |
+
+States are judged against the pinned mermaid (see
+[Mermaid is pinned, deliberately](#mermaid-is-pinned-deliberately)), so they
+move when that pin moves — a type absent upstream cannot be assessed, and a
+type whose demos change may need re-rating. The corpus also carries `error`,
+`example` and `info` demos, which exercise mermaid's own error handling rather
+than a diagram type and are not rated here.
 
 ## Limitations
 
