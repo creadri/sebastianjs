@@ -24,70 +24,6 @@ Focus is made on implementing SVG exports.
 
 As this doesn't require a headless browser, it should be faster to render.
 
-## How are things so far
-
-### August 2026
-
-The rewrite landed. Instead of letting a hollow DOM compute a wrong layout and
-patching the SVG afterwards, the DOM now measures correctly in the first place:
-jsdom hosts the document and svgdom's geometry engine (vendored, driven by
-fontkit) answers `getBBox`, `getComputedTextLength`, `getCTM` and friends.
-
-Layout in mermaid is pure JS (dagre/ELK) — it was always correct, it was just
-being fed wrong measurements. Fixing the measurements fixed the layout, which
-post-processing structurally could not do: by the time you have the SVG, nodes
-have already been placed from the wrong sizes.
-
-Measured against real Chrome via mermaid-cli, both pinned to `htmlLabels: false`
-and Open Sans:
-
-| diagram | sebastianjs | chrome | Δ width |
-| --- | --- | --- | --- |
-| flowchart TD | 127.3 x 383.3 | 127.4 x 383.4 | 0.08% |
-| flowchart LR | 1050.7 x 170.0 | 1052.1 x 170.0 | 0.13% |
-| sequence | 500.0 x 333.0 | 500.0 x 333.0 | 0.00% |
-| class | 299.2 x 367.0 | 299.7 x 367.0 | 0.17% |
-| state | 121.5 x 358.0 | 121.9 x 358.0 | 0.26% |
-| er | 449.1 x 474.0 | 449.3 x 474.0 | 0.05% |
-
-Individual text runs match Chrome exactly (Δy 0.00, Δx ≤ 0.02, Δheight 0.00).
-Across the full sample corpus — 84 diagrams compared against real Chrome — the
-average absolute node-position deviation is **0.016px**, excluding nine diagrams
-with two documented causes (KaTeX math labels, and one line-breaking case listed
-in `KNOWN_DEVIATIONS`). Regenerate with `node scripts/compare-chrome.mjs` or
-`node scripts/deviation-suite.mjs`.
-
-**Labels use HTML in `<foreignObject>`, as mermaid does by default.** Measuring
-that means modelling the small slice of CSS mermaid actually emits — the label
-markup is 8 tags and 6 properties, and reduces to `width = widest line advance`,
-`height = lines x line-height`. Raw HTML, entities and `<img>` in labels all work.
-
-Set `htmlLabels: false` to emit SVG `<text>` instead:
-
-```js
-const svg = await render(def, { htmlLabels: false });
-```
-
-That matters for **portability**: `<foreignObject>` is not supported by librsvg
-or resvg and only partly by Inkscape, so HTML labels render correctly in a
-browser but can lose every label in a non-browser rasterizer pipeline. The
-`<text>` path renders anywhere, at the cost of showing raw HTML, HTML entities
-and `fa:` icons as literal text.
-
-Images in labels are sized from `data:` URIs and local files. Pass
-`allowRemoteImages: true` to fetch `http(s)` sources — off by default so
-rendering never performs network I/O unasked. Pass `iconPacks` (Iconify JSON,
-e.g. from `@iconify-json/fa6-solid`) to make `fa:` labels resolve to real icons
-instead of literal text.
-
-### November 2025
-
-Not Great, mermaid uses a lot of DOM features to perform the layout. So far the goal was to: let an empty shell of a DOM do the math wrongly and get a very wrong layout. Then post process the results and try to mimic the looks. It worked for some demos but I don't think it's the right approach. Looking into svgdom project in order to have a more detailled and implemented DOM.
-
-### August 2025
-
-Doing great, already got some results and the benchmarks are showing obvious benefits in rendering with sebastianjs instead of mermaid-cli.
-
 ## Installation
 
 ```bash
@@ -261,3 +197,67 @@ xychart-beta
 ```
 
 <!-- BENCHMARK_END -->
+
+## How are things so far
+
+### August 2026
+
+The rewrite landed. Instead of letting a hollow DOM compute a wrong layout and
+patching the SVG afterwards, the DOM now measures correctly in the first place:
+jsdom hosts the document and svgdom's geometry engine (vendored, driven by
+fontkit) answers `getBBox`, `getComputedTextLength`, `getCTM` and friends.
+
+Layout in mermaid is pure JS (dagre/ELK) — it was always correct, it was just
+being fed wrong measurements. Fixing the measurements fixed the layout, which
+post-processing structurally could not do: by the time you have the SVG, nodes
+have already been placed from the wrong sizes.
+
+Measured against real Chrome via mermaid-cli, both pinned to `htmlLabels: false`
+and Open Sans:
+
+| diagram | sebastianjs | chrome | Δ width |
+| --- | --- | --- | --- |
+| flowchart TD | 127.3 x 383.3 | 127.4 x 383.4 | 0.08% |
+| flowchart LR | 1050.7 x 170.0 | 1052.1 x 170.0 | 0.13% |
+| sequence | 500.0 x 333.0 | 500.0 x 333.0 | 0.00% |
+| class | 299.2 x 367.0 | 299.7 x 367.0 | 0.17% |
+| state | 121.5 x 358.0 | 121.9 x 358.0 | 0.26% |
+| er | 449.1 x 474.0 | 449.3 x 474.0 | 0.05% |
+
+Individual text runs match Chrome exactly (Δy 0.00, Δx ≤ 0.02, Δheight 0.00).
+Across the full sample corpus — 84 diagrams compared against real Chrome — the
+average absolute node-position deviation is **0.016px**, excluding nine diagrams
+with two documented causes (KaTeX math labels, and one line-breaking case listed
+in `KNOWN_DEVIATIONS`). Regenerate with `node scripts/compare-chrome.mjs` or
+`node scripts/deviation-suite.mjs`.
+
+**Labels use HTML in `<foreignObject>`, as mermaid does by default.** Measuring
+that means modelling the small slice of CSS mermaid actually emits — the label
+markup is 8 tags and 6 properties, and reduces to `width = widest line advance`,
+`height = lines x line-height`. Raw HTML, entities and `<img>` in labels all work.
+
+Set `htmlLabels: false` to emit SVG `<text>` instead:
+
+```js
+const svg = await render(def, { htmlLabels: false });
+```
+
+That matters for **portability**: `<foreignObject>` is not supported by librsvg
+or resvg and only partly by Inkscape, so HTML labels render correctly in a
+browser but can lose every label in a non-browser rasterizer pipeline. The
+`<text>` path renders anywhere, at the cost of showing raw HTML, HTML entities
+and `fa:` icons as literal text.
+
+Images in labels are sized from `data:` URIs and local files. Pass
+`allowRemoteImages: true` to fetch `http(s)` sources — off by default so
+rendering never performs network I/O unasked. Pass `iconPacks` (Iconify JSON,
+e.g. from `@iconify-json/fa6-solid`) to make `fa:` labels resolve to real icons
+instead of literal text.
+
+### November 2025
+
+Not Great, mermaid uses a lot of DOM features to perform the layout. So far the goal was to: let an empty shell of a DOM do the math wrongly and get a very wrong layout. Then post process the results and try to mimic the looks. It worked for some demos but I don't think it's the right approach. Looking into svgdom project in order to have a more detailled and implemented DOM.
+
+### August 2025
+
+Doing great, already got some results and the benchmarks are showing obvious benefits in rendering with sebastianjs instead of mermaid-cli.
