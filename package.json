@@ -44,7 +44,8 @@
     "dompurify": ">=3.2.6",
     "jsdom": ">=24.1.0",
     "mermaid": ">=10.11.10",
-    "fontkit": ">=2.0.4"
+    "fontkit": ">=2.0.4",
+    "image-size": ">=2.0.2"
   },
   "devDependencies": {
     "@babel/core": ">=7.28.3",

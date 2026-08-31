@@ -54,11 +54,28 @@ Individual text runs match Chrome exactly (Δy 0.00, Δx ≤ 0.02, Δheight 0.00
 node positions land within 0.05px. Regenerate with
 `node scripts/compare-chrome.mjs`.
 
-**Caveat: labels are rendered as SVG `<text>`, not HTML.** Mermaid's default
-puts labels in a `<foreignObject>` and measures them with
-`getBoundingClientRect`, which is CSS layout — not implemented here. So
-`htmlLabels` is forced to `false`. Text metrics on that path match Chrome to
-~0.01%, but markdown inside a label renders as tspans rather than HTML.
+**Labels use HTML in `<foreignObject>`, as mermaid does by default.** Measuring
+that means modelling the small slice of CSS mermaid actually emits — the label
+markup is 8 tags and 6 properties, and reduces to `width = widest line advance`,
+`height = lines x line-height`. Raw HTML, entities and `<img>` in labels all work.
+
+Set `htmlLabels: false` to emit SVG `<text>` instead:
+
+```js
+const svg = await render(def, { htmlLabels: false });
+```
+
+That matters for **portability**: `<foreignObject>` is not supported by librsvg
+or resvg and only partly by Inkscape, so HTML labels render correctly in a
+browser but can lose every label in a non-browser rasterizer pipeline. The
+`<text>` path renders anywhere, at the cost of showing raw HTML, HTML entities
+and `fa:` icons as literal text.
+
+Images in labels are sized from `data:` URIs and local files. Pass
+`allowRemoteImages: true` to fetch `http(s)` sources — off by default so
+rendering never performs network I/O unasked. Pass `iconPacks` (Iconify JSON,
+e.g. from `@iconify-json/fa6-solid`) to make `fa:` labels resolve to real icons
+instead of literal text.
 
 ### November 2025
 

@@ -12,6 +12,7 @@ import { getSegments, getFontDetails, FONT_REGISTRY } from './bbox.js';
 import { textAdvance } from './text.js';
 import { createDefaultRegistry } from './fonts.js';
 import { htmlBoundingRect } from './html.js';
+import { installImageLoading, IMAGE_OPTIONS } from './images.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -27,9 +28,14 @@ const isSvgElement = (node) => node?.namespaceURI === SVG_NS;
  * @param {import('jsdom').DOMWindow} window
  * @param {{ fontRegistry?: import('./fonts.js').FontRegistry }} options
  */
-export function installGeometry(window, { fontRegistry } = {}) {
+export function installGeometry(window, { fontRegistry, imageOptions } = {}) {
   const registry = fontRegistry ?? createDefaultRegistry();
   window.document[FONT_REGISTRY] = registry;
+  window.document[IMAGE_OPTIONS] = imageOptions ?? {};
+
+  // Without this, an <img> in a label wedges the render: mermaid awaits a load
+  // event that jsdom never fires. See images.js.
+  installImageLoading(window);
 
   if (window.SVGElement.prototype.getBBox) return registry;
 

@@ -5,8 +5,8 @@
 //
 //   node scripts/compare-chrome.mjs
 //
-// Both sides are pinned to htmlLabels:false and Open Sans so they measure the
-// same thing; see README for why.
+// Both sides are pinned to htmlLabels:true (mermaid's default, and ours) and
+// Open Sans so they measure the same thing.
 import { render } from '../src/index.js';
 import { spawnMmdc } from './mmdc-wrapper.mjs';
 import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
@@ -24,8 +24,8 @@ const DIAGRAMS = {
 };
 
 const dir = mkdtempSync(join(tmpdir(), 'seb-'));
-const cfg = { startOnLoad:false, securityLevel:'loose', htmlLabels:false,
-  flowchart:{htmlLabels:false}, class:{htmlLabels:false},
+const cfg = { startOnLoad:false, securityLevel:'loose', htmlLabels:true,
+  flowchart:{htmlLabels:true}, class:{htmlLabels:true},
   fontFamily:'Open Sans', themeVariables:{fontFamily:'Open Sans'} };
 writeFileSync(join(dir,'cfg.json'), JSON.stringify(cfg));
 writeFileSync(join(dir,'pptr.json'), JSON.stringify({args:['--no-sandbox','--disable-setuid-sandbox']}));

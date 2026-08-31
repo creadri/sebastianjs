@@ -23,6 +23,7 @@ import { FONT_REGISTRY } from './bbox.js';
 import { cssStyleFor } from './css.js';
 import { parseWeight, parseItalic } from './fonts.js';
 import { resolveLength, resolveLineHeight } from './units.js';
+import { naturalSizeOf } from './images.js';
 
 const DEFAULT_FONT_SIZE = 16;
 
@@ -126,7 +127,19 @@ function collectBlocks(root, registry) {
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === 3) {
         const text = child.data;
-        if (text) current.push({ type: 'text', text, font: fontFor(child, registry) });
+        if (text) {
+          // white-space is inherited and a descendant may override the
+          // container: mermaid's class-diagram notes set the div to
+          // break-spaces but the inner span to `nowrap !important`, so a
+          // container-level decision wraps text Chrome keeps on one line.
+          const ws = inherited(child.parentNode, 'white-space') || 'normal';
+          current.push({
+            type: 'text',
+            text,
+            nowrap: ws === 'nowrap' || ws === 'pre',
+            font: fontFor(child, registry),
+          });
+        }
         continue;
       }
       if (child.nodeType !== 1) continue;
@@ -156,24 +169,104 @@ function collectBlocks(root, registry) {
 }
 
 /**
- * Intrinsic size of a replaced element. Only explicit dimensions are honoured
- * here; deriving them from image data is H3 and lands in this function.
+ * Size of a replaced element (<img>, inline <svg>).
+ *
+ * mermaid sizes label images itself: an image-only label gets min-width and
+ * max-width of fontSize * 5, and an image beside text gets width:100%. A
+ * percentage cannot be resolved against a shrink-to-fit cell, so the intrinsic
+ * size is used for that case.
  */
 function replacedSize(el) {
-  const fontSize = DEFAULT_FONT_SIZE;
-  const width =
-    resolveLength(declared(el, 'width'), fontSize) ??
-    NaN;
-  const height = resolveLength(declared(el, 'height'), fontSize);
+  const fontSize = fontFor(el, null).fontSize;
+  const natural = naturalSizeOf(el) || { width: 0, height: 0 };
+
+  const explicit = (property) => resolveLength(declared(el, property), fontSize);
+
+  let width = explicit('width');
+  let height = explicit('height');
+
+  // min-width/max-width pin the image when mermaid has decided its size.
+  const minWidth = explicit('min-width');
+  const maxWidth = explicit('max-width');
+  if (!Number.isFinite(width)) {
+    if (Number.isFinite(minWidth) && Number.isFinite(maxWidth) && minWidth === maxWidth) {
+      width = minWidth;
+    } else {
+      width = natural.width;
+    }
+  }
+  if (Number.isFinite(minWidth)) width = Math.max(width, minWidth);
+  if (Number.isFinite(maxWidth)) width = Math.min(width, maxWidth);
+
+  if (!Number.isFinite(height)) {
+    // Preserve the aspect ratio when only the width is constrained.
+    height = natural.width > 0 ? (natural.height * width) / natural.width : natural.height;
+  }
+
   return {
     width: Number.isFinite(width) ? width : 0,
     height: Number.isFinite(height) ? height : 0,
   };
 }
 
-/** Split a run into alternating word / whitespace tokens, keeping both. */
+// Characters after which CSS allows a line break even without a space. This is a
+// pragmatic subset of UAX #14, not the full algorithm: Chrome breaks
+// "[DBServer\\SharedDbInstance].[SupportDb]" — which contains no spaces at all —
+// across three lines, and breaks "Server:Service 1" after the colon. Splitting on
+// whitespace alone under-breaks and makes labels measure too short.
+// Only the classes UAX #14 actually offers a break after: hyphens (HY),
+// slash (SY) and close punctuation (CL). Notably NOT ':' or '.', which are
+// infix separators — treating them as breakable splits "Server:Service" and
+// makes labels measure narrower than Chrome.
+const BREAK_AFTER = /[-\u2010\u2013\u2014/\])}]/;
+// UAX #14 LB13: never break BEFORE these, so an offered break is withdrawn when
+// one follows. Without this, "[DBServer\\SharedDbInstance].[SupportDb]" breaks
+// after the ']' and measures one period (4.2px) narrower than Chrome.
+const NO_BREAK_BEFORE = /[.,;:!?)\]}\/]/;
+// A break is offered before an opening bracket, which is how Chrome splits
+// "[DBServer\\SharedDbInstance].[SupportDb]" after the period.
+const OPEN_BRACKET = /[[({]/;
+// CJK ideographs and kana break between almost any pair.
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/;
+
+/**
+ * Split a run into atomic chunks plus the break opportunity that follows each.
+ * @returns {Array<{text: string, isSpace: boolean, breakAfter: boolean}>}
+ */
 function tokenize(text) {
-  return text.match(/\s+|[^\s]+/g) || [];
+  const chunks = [];
+  let current = '';
+
+  const push = (breakAfter) => {
+    if (current) chunks.push({ text: current, isSpace: false, breakAfter });
+    current = '';
+  };
+
+  for (const [i, ch] of [...text].entries()) {
+    if (/\s/.test(ch)) {
+      push(true);
+      const last = chunks[chunks.length - 1];
+      if (last?.isSpace) last.text += ch;
+      else chunks.push({ text: ch, isSpace: true, breakAfter: true });
+      continue;
+    }
+    current += ch;
+    const next = text[i + 1];
+    if (next === undefined || /\s/.test(next)) continue;
+    // A break is offered after this character, before an opening bracket, or
+    // between two CJK characters — unless the next character is one we may
+    // never break before, which withdraws the offer.
+    if (NO_BREAK_BEFORE.test(next)) continue;
+    if (
+      BREAK_AFTER.test(ch) ||
+      OPEN_BRACKET.test(next) ||
+      (CJK.test(ch) && CJK.test(next))
+    ) {
+      push(true);
+    }
+  }
+  push(false);
+  return chunks;
 }
 
 const advance = (text, font) =>
@@ -189,13 +282,21 @@ function layoutLines(items, available) {
   const widths = [];
   let lineWidth = 0;
   // Trailing whitespace does not contribute to a line's width, so it is held
-  // back until another word arrives on the same line.
+  // back until another chunk arrives on the same line.
   let pendingSpace = 0;
+  // The widest run with no break opportunity inside it. A box can never be
+  // narrower than this, even when max-width or an explicit width says otherwise:
+  // Chrome reports 227.45 for a 200px-max label whose longest unbreakable run is
+  // 227.45, and mermaid sizes the node from that.
+  let minContent = 0;
+  // A break may only be taken where the previous chunk offered one.
+  let breakable = false;
 
   const endLine = () => {
     widths.push(lineWidth);
     lineWidth = 0;
     pendingSpace = 0;
+    breakable = false;
   };
 
   for (const item of items) {
@@ -204,39 +305,55 @@ function layoutLines(items, available) {
       continue;
     }
     if (item.type === 'box') {
-      if (available !== Infinity && lineWidth + pendingSpace + item.width > available && lineWidth > 0) {
+      minContent = Math.max(minContent, item.width);
+      if (available !== Infinity && lineWidth > 0 && lineWidth + pendingSpace + item.width > available) {
         endLine();
       }
       lineWidth += pendingSpace + item.width;
       pendingSpace = 0;
+      breakable = true;
       continue;
     }
 
-    if (available === Infinity) {
+    if (available === Infinity || item.nowrap) {
       // No wrapping: measure the whole run at once so kerning is preserved.
-      lineWidth += pendingSpace + advance(item.text, item.font);
+      const runWidth = advance(item.text, item.font);
+      lineWidth += pendingSpace + runWidth;
       pendingSpace = 0;
+      breakable = true; // a break may still be taken between runs
+      if (item.nowrap) {
+        // The entire run is unbreakable, so it sets the min-content width.
+        minContent = Math.max(minContent, runWidth);
+      } else {
+        for (const chunk of tokenize(item.text)) {
+          if (!chunk.isSpace) minContent = Math.max(minContent, advance(chunk.text, item.font));
+        }
+      }
       continue;
     }
 
-    for (const token of tokenize(item.text)) {
-      const width = advance(token, item.font);
-      if (/^\s+$/.test(token)) {
+    for (const chunk of tokenize(item.text)) {
+      const width = advance(chunk.text, item.font);
+      if (chunk.isSpace) {
         if (lineWidth > 0) pendingSpace += width;
+        breakable = true;
         continue;
       }
-      if (lineWidth > 0 && lineWidth + pendingSpace + width > available) {
+      minContent = Math.max(minContent, width);
+      if (breakable && lineWidth > 0 && lineWidth + pendingSpace + width > available) {
         endLine();
         lineWidth = width;
+        breakable = chunk.breakAfter;
         continue;
       }
       lineWidth += pendingSpace + width;
       pendingSpace = 0;
+      breakable = chunk.breakAfter;
     }
   }
 
   endLine();
-  return { widths };
+  return { widths, minContent };
 }
 
 /** The line-height that applies to a block's line boxes. */
@@ -272,18 +389,27 @@ export function htmlBoundingRect(el) {
   const blocks = collectBlocks(el, registry);
   let width = 0;
   let height = 0;
+  let minContent = 0;
 
   for (const items of blocks) {
-    const { widths } = layoutLines(items, available);
+    const { widths, minContent: blockMin } = layoutLines(items, available);
+    minContent = Math.max(minContent, blockMin);
     const lineHeight = lineHeightFor(el, items);
+    // A replaced element taller than the line box raises it.
+    const tallest = items.reduce((max, i) => (i.type === 'box' ? Math.max(max, i.height) : max), 0);
     for (const w of widths) width = Math.max(width, w);
-    height += widths.length * lineHeight;
+    height += widths.length * Math.max(lineHeight, tallest);
   }
 
   if (Number.isFinite(explicitWidth)) width = explicitWidth;
   // A table-cell at nowrap still cannot exceed max-width; mermaid detects that
   // clamp (bbox.width === width) and re-measures in wrapping mode.
   else if (Number.isFinite(maxWidth)) width = Math.min(width, maxWidth);
+  // Once wrapping, neither max-width nor an explicit width can push a box below
+  // its min-content width. At nowrap the clamp stands: Chrome reports exactly
+  // max-width there, which is precisely the signal mermaid uses to decide it
+  // must re-measure in wrapping mode.
+  if (!nowrap) width = Math.max(width, minContent);
 
   return {
     x: 0, y: 0, left: 0, top: 0,

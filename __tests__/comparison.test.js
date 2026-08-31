@@ -19,12 +19,13 @@ const MMDC = resolve('node_modules', '.bin', 'mmdc');
 const hasMmdc = existsSync(MMDC);
 
 // Both sides must measure the same thing: same label mode, same font.
+// htmlLabels is mermaid's default and now ours, so this is the mode users get.
 const MERMAID_CONFIG = {
   startOnLoad: false,
   securityLevel: 'loose',
-  htmlLabels: false,
-  flowchart: { htmlLabels: false },
-  class: { htmlLabels: false },
+  htmlLabels: true,
+  flowchart: { htmlLabels: true },
+  class: { htmlLabels: true },
   fontFamily: 'Open Sans',
   themeVariables: { fontFamily: 'Open Sans' },
 };
