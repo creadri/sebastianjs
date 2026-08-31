@@ -22,6 +22,12 @@ jobs:
 
       - name: Install
         run: npm ci
+        env:
+          # Publishing needs no browser: the Chrome parity tests skip themselves
+          # when mermaid-cli or the Open Sans system font is unavailable, which
+          # is the case on a bare runner. Skipping the download saves pulling
+          # ~100MB of Chromium on every publish.
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
 
       - name: Test
         run: npm test --silent

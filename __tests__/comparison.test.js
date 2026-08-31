@@ -1,6 +1,7 @@
 import { render, dispose } from '../src/index.js';
 import { spawnMmdc } from '../scripts/mmdc-wrapper.mjs';
 import { JSDOM } from 'jsdom';
+import { execSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -16,7 +17,40 @@ import { join, resolve } from 'node:path';
 //     htmlLabels: false output, comparing two different rendering modes.
 
 const MMDC = resolve('node_modules', '.bin', 'mmdc');
+
+/**
+ * Both sides are pinned to Open Sans. We load the bundled TTF directly, but
+ * Chrome resolves it through fontconfig — so unless the font is installed for
+ * the system, Chrome silently substitutes another face and the two renderers
+ * are measuring different fonts. That produced a confusing ~6px "mismatch" in
+ * CI while passing locally, where the font happened to be installed.
+ *
+ * Skip rather than compare apples to oranges. .devcontainer/setup.sh installs
+ * the font so this runs during development; see it for how to enable in CI.
+ */
+function chromeCanResolveOpenSans() {
+  try {
+    const family = execSync('fc-match "Open Sans" --format "%{family}"', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return family.split(',').some((name) => name.trim().toLowerCase() === 'open sans');
+  } catch {
+    return false; // no fontconfig (non-Linux); cannot guarantee the same font
+  }
+}
+
 const hasMmdc = existsSync(MMDC);
+const hasFont = chromeCanResolveOpenSans();
+const canCompare = hasMmdc && hasFont;
+
+if (hasMmdc && !hasFont) {
+  console.warn(
+    '[comparison] Skipping Chrome parity: fontconfig cannot resolve "Open Sans", ' +
+      'so mermaid-cli would render with a substitute face. Install fonts/Open_Sans ' +
+      'system-wide (see .devcontainer/setup.sh) to enable this test.'
+  );
+}
 
 // Both sides must measure the same thing: same label mode, same font.
 // htmlLabels is mermaid's default and now ours, so this is the mode users get.
@@ -71,7 +105,7 @@ async function renderWithMermaidCli(definition) {
 afterAll(async () => { await dispose(); });
 
 describe('SebastianJS vs mermaid-cli', () => {
-  (hasMmdc ? it : it.skip)('places nodes where Chrome does', async () => {
+  (canCompare ? it : it.skip)('places nodes where Chrome does', async () => {
     const [ours, chrome] = await Promise.all([
       render(DEFINITION, { mermaidConfig: { securityLevel: 'loose' } }),
       renderWithMermaidCli(DEFINITION),
