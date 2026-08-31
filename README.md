@@ -131,11 +131,6 @@ not have at all, so they are unassessed rather than broken.
 | dataflowchart | error | Renders on the pinned corpus (0/2 samples fail) — worth re-checking |
 | ishikawa | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
 | mindmap | error | cytoscape's grid layout throws (`Cannot read properties of undefined (reading 'h')`) |
-| railroad | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
-| treeView | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
-| usecase | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
-| venn | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
-| wardley | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
 | zenuml | error | Needs `@mermaid-js/mermaid-zenuml` registered; mermaid-cli bundles it, we do not |
 | c4context | incorrect | |
 | gantt | incorrect | |
