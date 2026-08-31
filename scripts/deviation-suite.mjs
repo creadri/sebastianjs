@@ -12,20 +12,13 @@ import { spawnMmdc } from './mmdc-wrapper.mjs';
 // diagnostics and no longer the primary gate.
 export const NORMALIZED_DEVIATION_THRESHOLD = 0.01;
 // Absolute average node-position error, in px, with no alignment applied. This
-// is the meaningful gate.
+// is the meaningful gate, and it doubles as the per-sample failure threshold.
 //
-// 2.12px over 30 compared samples in htmlLabels mode. Almost every sample is
-// well under 0.1px; the average is dominated by flowchart__10, where our line
-// breaking puts some labels on one fewer line than Chrome. Label WIDTHS there
-// match to 0.008px, so this is a line-breaking gap, not a measurement one: we
-// implement a subset of UAX #14 rather than the whole algorithm. The empty
-// FontAwesome placeholder was ruled out as the cause (Chrome measures it 0px
-// wide, same as we do).
-//
-// Set at 3 so the gate still catches a real regression while that sample is
-// outstanding; tighten it back toward 0.3 once the line breaking is complete.
-export const POSITION_DEVIATION_THRESHOLD = 3;
-// Average |Δ| of the rendered viewBox width, relative. Measured 0.7%.
+// Measured 0.042px across the comparison corpus once KNOWN_DEVIATIONS are
+// excluded from the aggregate — they are reported separately so one outlier
+// cannot swing the average with corpus size. Set at 1px: far above the noise,
+// far below anything a real regression would produce.
+export const POSITION_DEVIATION_THRESHOLD = 1;
 export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
 
 /**
@@ -35,13 +28,18 @@ export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
  * cause is fixed — the suite reports any listed sample that has started passing.
  */
 export const KNOWN_DEVIATIONS = new Map([
-  [
-    'samples/mermaid-demos/flowchart__10.mmd',
-    'Line breaking: some labels land on one fewer line than Chrome. Label ' +
-      'widths match to 0.008px, so this is the incomplete UAX #14 subset, not ' +
-      'a measurement error. The empty FontAwesome placeholder was ruled out ' +
-      '(Chrome measures it 0px wide, as we do).',
-  ],
+  // Math labels. Mermaid typesets $$...$$ with KaTeX, which we do not implement,
+  // so these labels measure as raw TeX source. A missing feature, not a bug.
+  ...['flowchart__39', 'flowchart__40', 'flowchart__41', 'flowchart__42', 'flowchart__43', 'flowchart__44'].map(
+    (name) => [`samples/mermaid-demos/${name}.mmd`, 'KaTeX math labels are not typeset']
+  ),
+  // One diagram (duplicated in the corpus) whose labels land on one fewer line
+  // than Chrome. Label widths match to 0.008px, so this is the incomplete
+  // UAX #14 subset rather than a measurement error. The empty FontAwesome
+  // placeholder was ruled out as the cause: Chrome measures it 0px wide, as we do.
+  ...['flowchart__9', 'flowchart__10', 'flowchart__49'].map(
+    (name) => [`samples/mermaid-demos/${name}.mmd`, 'line breaking: one fewer line than Chrome on fa: labels']
+  ),
 ]);
 export const MAX_SAMPLES = process.env.DEVIATION_MAX_SAMPLES ? parseInt(process.env.DEVIATION_MAX_SAMPLES,10) : Infinity;
 export const WIDTH = 800;
@@ -364,7 +362,31 @@ async function main(options = {}) {
       }
     }
   }
-  if (MAX_SAMPLES && Number.isFinite(MAX_SAMPLES)) samples = samples.slice(0, MAX_SAMPLES);
+  // Filter by diagram type BEFORE truncating, so DEVIATION_MAX_SAMPLES caps the
+  // number of samples actually compared. Truncating first meant that adding
+  // unsupported beta diagrams to the corpus silently shrank the comparison set.
+  // Callers may pass maxSamples directly: setting process.env after an ESM
+  // import is too late, because imports are hoisted and MAX_SAMPLES is read at
+  // module evaluation.
+  const maxSamples = Number.isFinite(options.maxSamples) ? options.maxSamples : MAX_SAMPLES;
+  if (maxSamples && Number.isFinite(maxSamples)) {
+    const allowed = [];
+    for (const file of samples) {
+      let def;
+      try { def = await fsp.readFile(file, 'utf8'); } catch { continue; }
+      if (isAllowed(def)) allowed.push(file);
+    }
+    // Spread the cap across the whole corpus instead of taking the first N.
+    // Samples are named by type, so an alphabetical prefix is a biased slice:
+    // capping at 40 never reached flowchart__23 and beyond, and reported 0.04px
+    // average deviation while the full corpus was far worse.
+    if (allowed.length > maxSamples) {
+      const stride = allowed.length / maxSamples;
+      samples = Array.from({ length: maxSamples }, (_, i) => allowed[Math.floor(i * stride)]);
+    } else {
+      samples = allowed;
+    }
+  }
 
   const results = [];
   const simpleItems = [];
@@ -506,11 +528,17 @@ async function main(options = {}) {
   }
 
   // Aggregate
-  const ok = results.filter(r => r.norm !== undefined && Number.isFinite(r.norm));
+  const allOk = results.filter(r => r.norm !== undefined && Number.isFinite(r.norm));
+  // A single known outlier would otherwise swing the average purely with corpus
+  // size — the same sample moved avgRaw from 2.12 to 3.34 when the comparison
+  // set shrank. Known deviations are reported separately instead.
+  const isKnown = (r) => KNOWN_DEVIATIONS.has(relative(process.cwd(), r.file).split(sep).join('/'));
+  const ok = allOk.filter(r => !isKnown(r));
+  const knownOk = allOk.filter(isKnown);
   const avgNorm = ok.reduce((a,r)=>a+r.norm,0)/(ok.length||1);
   const avgRaw = ok.reduce((a,r)=>a+r.raw,0)/(ok.length||1);
   const avgRawTransCorr = ok.reduce((a,r)=>a+(r.rawTransCorr??NaN),0)/(ok.length||1);
-  const failures = ok.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
+  const failures = allOk.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
 
   // Aggregates for size/viewBox deviations
   const widthAbsAvg = avg(ok.map(r => r.sizeDev?.widthAbs));
@@ -531,7 +559,12 @@ async function main(options = {}) {
   }
   const report = {
     samplesProcessed: samples.length,
-    compared: ok.length,
+    compared: allOk.length,
+    comparedExcludingKnown: ok.length,
+    knownDeviations: knownOk.map((r) => ({
+      file: relative(process.cwd(), r.file).split(sep).join('/'),
+      raw: r.raw,
+    })),
     avgNormalizedDeviation: avgNorm,
     avgRawDeviation: avgRaw,
     avgRawTransCorrDeviation: avgRawTransCorr,
@@ -571,7 +604,7 @@ async function main(options = {}) {
   return {
     avgNorm,
     avgRaw,
-    compared: ok.length,
+    compared: allOk.length,
     samplesProcessed: samples.length,
     viewBoxWidthRel: vbWRelAvg,
     failuresCount: failures.length,

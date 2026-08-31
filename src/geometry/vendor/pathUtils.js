@@ -338,56 +338,46 @@ export class Arc {
   getCloud() {
     if (this.p1.equals(this.p2)) return new PointCloud([this.p1])
 
-    // arc could be rotated. the min and max values then dont lie on multiples of 90 degress but are shifted by the rotation angle
-    // so we first calculate our 0/90 degree angle
-    let θ01 =
-      (Math.atan(((-this.sinφ / this.cosφ) * this.ry) / this.rx) * 180) /
-      Math.PI
-    let θ02 =
-      (Math.atan(((this.cosφ / this.sinφ) * this.ry) / this.rx) * 180) / Math.PI
-    let θ1 = this.theta
-    let θ2 = this.theta2
+    // PATCHED (not upstream svgdom): the original walked candidate angles with
+    // `while (θ01 - 90 > θ01)` — a condition that is never true — and compared
+    // them against a start/end pair it had sorted, which loses the sweep
+    // direction. For a half-ellipse it returned an extent of rx along y:
+    //
+    //   M0,10 a40,10 0,0,0 80,0   ->  height 40, should be 10
+    //
+    // mermaid draws cylinder nodes from two such arcs, so every [(...)] shape
+    // came out ~61px too tall. Replaced with the closed form: dx/dt and dy/dt
+    // vanish at fixed parametric angles, so test those that fall inside the
+    // swept range and take the endpoints as well.
+    const rad = (deg) => (deg * Math.PI) / 180
+    const cosφ = this.cosφ
+    const sinφ = this.sinφ
 
-    if (θ1 < 0 || θ2 < 0) {
-      θ1 += 360
-      θ2 += 360
-    }
-
-    if (θ2 < θ1) {
-      const temp = θ1
-      θ1 = θ2
-      θ2 = temp
-    }
-
-    while (θ01 - 90 > θ01) θ01 -= 90
-    while (θ01 < θ1) θ01 += 90
-    while (θ02 - 90 > θ02) θ02 -= 90
-    while (θ02 < θ1) θ02 += 90
-
-    const angleToTest = [
-      θ01,
-      θ02,
-      θ01 + 90,
-      θ02 + 90,
-      θ01 + 180,
-      θ02 + 180,
-      θ01 + 270,
-      θ02 + 270
-    ]
-
-    const points = angleToTest
-      .filter(function (angle) {
-        return angle > θ1 && angle < θ2
-      })
-      .map(
-        function (angle) {
-          while (this.theta < angle) angle -= 360
-          return this.pointAt(((angle - this.theta) % 360) / this.delta) // TODO: replace that call with pointAtAngle
-        }.bind(this)
+    const pointAtAngle = (t) =>
+      new Point(
+        this.c.x + this.rx * Math.cos(t) * cosφ - this.ry * Math.sin(t) * sinφ,
+        this.c.y + this.rx * Math.cos(t) * sinφ + this.ry * Math.sin(t) * cosφ
       )
-      .concat(this.p1, this.p2)
 
-    return new PointCloud(points)
+    const θ = rad(this.theta)
+    const Δ = rad(this.delta)
+
+    // dx/dt = 0 and dy/dt = 0 respectively
+    const tx = Math.atan2(-this.ry * sinφ, this.rx * cosφ)
+    const ty = Math.atan2(this.ry * cosφ, this.rx * sinφ)
+
+    const points = []
+    for (const base of [tx, ty]) {
+      // The same extreme repeats every half turn; walk enough turns either way
+      // to cover any sweep the endpoint form can produce.
+      for (let k = -4; k <= 4; k++) {
+        const t = base + k * Math.PI
+        const u = Δ === 0 ? -1 : (t - θ) / Δ
+        if (u > 0 && u < 1) points.push(pointAtAngle(t))
+      }
+    }
+
+    return new PointCloud(points.concat(this.p1, this.p2))
   }
 
   length() {

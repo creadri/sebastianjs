@@ -144,6 +144,22 @@ describe('text layout', () => {
 });
 
 describe('paths', () => {
+  // Upstream svgdom returns rx as the vertical extent of a half-ellipse, which
+  // made every mermaid cylinder node ~61px too tall. See the PATCHED note in
+  // src/geometry/vendor/pathUtils.js. Values measured in Chromium.
+  test.each([
+    ['M0,10 a40,10 0,0,0 80,0', { x: 0, y: 10, width: 80, height: 10 }],
+    ['M0,10 a40,10 0,0,1 80,0', { x: 0, y: 0, width: 80, height: 10 }],
+    ['M0,0 a40,10 0,0,1 40,10', { x: 0, y: 0, width: 40, height: 10 }],
+  ])('elliptical arc %p has Chrome bbox', (d, expected) => {
+    const svg = svgRoot();
+    const box = el('path', { d }, svg).getBBox();
+    expect(box.x).toBeCloseTo(expected.x, 2);
+    expect(box.y).toBeCloseTo(expected.y, 2);
+    expect(box.width).toBeCloseTo(expected.width, 2);
+    expect(box.height).toBeCloseTo(expected.height, 2);
+  });
+
   test('length and point sampling work', () => {
     const svg = svgRoot();
     const p = el('path', { d: 'M0,0 C10,50 90,50 100,0' }, svg);

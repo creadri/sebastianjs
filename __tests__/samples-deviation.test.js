@@ -11,7 +11,11 @@ import { resolve } from 'node:path';
 // Broad parity sweep over samples/mermaid-demos against real Chrome. Opt-in
 // because every sample launches a browser.
 //   DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js
-process.env.DEVIATION_MAX_SAMPLES = process.env.DEVIATION_MAX_SAMPLES || '40';
+//
+// Passed as an argument rather than via process.env: ESM hoists imports, so
+// assigning the env var here runs after the suite has already read it, and the
+// whole corpus would be swept — which overruns this test's time budget.
+const MAX_SAMPLES = Number(process.env.DEVIATION_MAX_SAMPLES || 40);
 
 const DEVIATION_ENABLED = process.env.DEVIATION_TESTS === '1' || process.env.DEV_COMPARE === '1';
 
@@ -23,7 +27,7 @@ const MMDC = resolve('node_modules', '.bin', 'mmdc');
   const hasMmdc = existsSync(MMDC);
 
   (hasMmdc ? it : it.skip)('matches Chrome across the sample corpus', async () => {
-    const summary = await runDeviationSuite();
+    const summary = await runDeviationSuite({ maxSamples: MAX_SAMPLES });
     console.log('Deviation summary:', summary);
 
     // Without this the suite reports zeros for an empty comparison set and every

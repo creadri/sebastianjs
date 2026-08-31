@@ -7,7 +7,7 @@
 // vendoring them lets us drive them from jsdom nodes instead.
 //
 // Re-run after bumping svgdom, then run the geometry tests.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +37,28 @@ const banner = (file) => `// Vendored from svgdom@${version} (${file}) — MIT.
 `;
 
 mkdirSync(OUT, { recursive: true });
+
+// Some vendored files carry local bug fixes (search for "PATCHED"). Overwriting
+// them silently would reintroduce upstream bugs we have already diagnosed, so
+// refuse unless --force and say exactly what would be lost.
+const PATCH_MARKER = 'PATCHED (not upstream svgdom)';
+const force = process.argv.includes('--force');
+const patched = MODULES.filter((rel) => {
+  const dest = path.join(OUT, path.basename(rel));
+  return existsSync(dest) && readFileSync(dest, 'utf8').includes(PATCH_MARKER);
+});
+
+if (patched.length && !force) {
+  console.error('Refusing to overwrite locally patched files:');
+  for (const rel of patched) console.error(`  ${path.basename(rel)}`);
+  console.error(
+    '\nRe-run with --force, then re-apply each patch and run the geometry tests.\n' +
+      'Known local fixes:\n' +
+      '  pathUtils.js  Arc.getCloud() — upstream returns rx as the vertical extent\n' +
+      '                for a half-ellipse, making mermaid cylinder nodes ~61px too tall.'
+  );
+  process.exit(1);
+}
 
 for (const rel of MODULES) {
   let code = readFileSync(path.join(SRC, rel), 'utf8');

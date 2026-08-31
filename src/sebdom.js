@@ -50,7 +50,18 @@ export async function sebDOM({ width = 800, height = 600, fontRegistry } = {}) {
  * document, so there is no way around this; scoping it keeps it from leaking.
  */
 export async function withGlobalDOM(window, fn) {
-  const keys = ['window', 'document', 'navigator', 'Node', 'Element', 'SVGElement', 'DOMParser', 'HTMLElement', 'CustomEvent', 'Event', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle'];
+  // Anything mermaid or d3 reads off the global object. Missing entries surface
+  // as "X is not defined" from deep inside a diagram renderer: `screen` broke
+  // every C4 diagram and `Option` broke a sequence diagram, both of which render
+  // fine once forwarded.
+  const keys = [
+    'window', 'document', 'navigator', 'location', 'screen', 'history',
+    'Node', 'Element', 'HTMLElement', 'SVGElement', 'DocumentFragment',
+    'Text', 'Comment', 'Image', 'Option', 'DOMParser', 'XMLSerializer',
+    'NodeFilter', 'CustomEvent', 'Event', 'MutationObserver', 'ResizeObserver',
+    'IntersectionObserver', 'DOMRect', 'getComputedStyle', 'matchMedia',
+    'requestAnimationFrame', 'cancelAnimationFrame',
+  ];
   const saved = new Map();
   for (const key of keys) {
     saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
