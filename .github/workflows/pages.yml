@@ -30,6 +30,24 @@ jobs:
           node-version: '22'
       - name: Install
         run: npm ci
+
+      # The reference pane is real mermaid-cli output, and mermaid-cli measures
+      # text through fontconfig. Without Open Sans installed as a system font
+      # Chrome silently substitutes another face, every width shifts, and the
+      # whole gallery reports differences that are really a font substitution.
+      # SebastianJS reads the same TTFs straight from fonts/, so only the
+      # Chrome side needs this. Mirrors .devcontainer/setup.sh.
+      - name: Install Open Sans for the mermaid-cli reference
+        run: |
+          mkdir -p "$HOME/.local/share/fonts/sebastianjs"
+          cp fonts/Open_Sans/static/OpenSans-Regular.ttf \
+             fonts/Open_Sans/static/OpenSans-Bold.ttf \
+             fonts/Open_Sans/static/OpenSans-Italic.ttf \
+             fonts/Open_Sans/static/OpenSans-BoldItalic.ttf \
+             "$HOME/.local/share/fonts/sebastianjs/"
+          fc-cache -f
+          fc-match "Open Sans" --format "%{family}\n"
+
       - name: Build site
         run: npm run build:site
       - name: Upload artifact

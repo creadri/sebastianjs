@@ -128,12 +128,11 @@ not have at all, so they are unassessed rather than broken.
 
 | Mermaid Type | State | Notes |
 |---|---|---|
-| dataflowchart | error | Renders on the pinned corpus (0/2 samples fail) — worth re-checking |
-| ishikawa | error | Not a diagram type in mermaid 11.9.0 — no demos to assess |
+| dataflowchart | ok |  |
 | mindmap | error | cytoscape's grid layout throws (`Cannot read properties of undefined (reading 'h')`) |
 | zenuml | error | Needs `@mermaid-js/mermaid-zenuml` registered; mermaid-cli bundles it, we do not |
-| c4context | incorrect | |
-| gantt | incorrect | |
+| c4context | incorrect | Renders, layout is mostly wrong |
+| gantt | incorrect | Renders, all elements are wrong |
 | architecture | mostly-fine | |
 | classchart | mostly-fine | 1 of 12 demos is invalid syntax; mermaid-cli rejects it too |
 | flowchart-elk | mostly-fine | |
@@ -155,12 +154,8 @@ not have at all, so they are unassessed rather than broken.
 | timeline | ok | |
 | treemap | ok | |
 
-States are judged against the pinned mermaid (see
-[Mermaid is pinned, deliberately](#mermaid-is-pinned-deliberately)), so they
-move when that pin moves — a type absent upstream cannot be assessed, and a
-type whose demos change may need re-rating. The corpus also carries `error`,
-`example` and `info` demos, which exercise mermaid's own error handling rather
-than a diagram type and are not rated here.
+*2026-09-01* : Feels like a major milestone and this is genuinely usable right now.
+
 
 ## Limitations
 
