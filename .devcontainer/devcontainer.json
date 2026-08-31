@@ -1,7 +1,11 @@
 {
   "name": "SebastianJS Dev",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:latest",
-  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "postCreateCommand": "bash .devcontainer/setup.sh && npm ci",
+  "containerEnv": {
+    "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
+    "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/chromium"
+  },
   "customizations": {
     "vscode": {
       "extensions": [

@@ -1,21 +1,40 @@
-import { runDeviationSuite, NORMALIZED_DEVIATION_THRESHOLD, POSITION_DEVIATION_THRESHOLD } from '../scripts/deviation-suite.mjs';
-// Limit samples during tests to keep runtime reasonable
+import {
+  runDeviationSuite,
+  NORMALIZED_DEVIATION_THRESHOLD,
+  POSITION_DEVIATION_THRESHOLD,
+  VIEWBOX_WIDTH_REL_THRESHOLD,
+} from '../scripts/deviation-suite.mjs';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// Broad parity sweep over samples/mermaid-demos against real Chrome. Opt-in
+// because every sample launches a browser.
+//   DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js
 process.env.DEVIATION_MAX_SAMPLES = process.env.DEVIATION_MAX_SAMPLES || '40';
-import { execSync, spawnSync } from 'child_process';
 
 const DEVIATION_ENABLED = process.env.DEVIATION_TESTS === '1' || process.env.DEV_COMPARE === '1';
 
-(DEVIATION_ENABLED ? describe : describe.skip)('Samples deviation vs mermaid-cli', () => {
-  const hasMmdc = (() => {
-    try { execSync('mmdc --version', { stdio: 'ignore', env: process.env }); return true; }
-    catch { try { const r = spawnSync('mmdc', ['--version'], { env: process.env }); return r.status === 0; } catch { return false; } }
-  })();
+// mermaid-cli is a devDependency, so look for the local binary. Probing `mmdc`
+// on PATH (as this test used to) silently skipped everywhere it is not linked.
+const MMDC = resolve('node_modules', '.bin', 'mmdc');
 
-  console.log('mmdc presence detected in test:', hasMmdc);
-  (hasMmdc ? it : it.skip)('overall deviation within thresholds', async () => {
-    const { avgNorm, avgRaw, failuresCount } = await runDeviationSuite();
-    console.log('Deviation summary:', { avgNorm, avgRaw, failuresCount, NORMALIZED_DEVIATION_THRESHOLD, POSITION_DEVIATION_THRESHOLD });
-    expect(avgNorm).toBeLessThanOrEqual(NORMALIZED_DEVIATION_THRESHOLD);
-    expect(avgRaw).toBeLessThanOrEqual(POSITION_DEVIATION_THRESHOLD);
-  }, 180000);
+(DEVIATION_ENABLED ? describe : describe.skip)('Samples deviation vs mermaid-cli', () => {
+  const hasMmdc = existsSync(MMDC);
+
+  (hasMmdc ? it : it.skip)('matches Chrome across the sample corpus', async () => {
+    const summary = await runDeviationSuite();
+    console.log('Deviation summary:', summary);
+
+    // Without this the suite reports zeros for an empty comparison set and every
+    // assertion below passes while nothing has been measured.
+    expect(summary.compared).toBeGreaterThan(0);
+
+    // Absolute position error, unaligned — the assertion that can actually catch
+    // a size or layout regression.
+    expect(summary.avgRaw).toBeLessThanOrEqual(POSITION_DEVIATION_THRESHOLD);
+    expect(summary.viewBoxWidthRel).toBeLessThanOrEqual(VIEWBOX_WIDTH_REL_THRESHOLD);
+    // Shape-only, scale-invariant: weak on its own, useful alongside the above.
+    expect(summary.avgNorm).toBeLessThanOrEqual(NORMALIZED_DEVIATION_THRESHOLD);
+    expect(summary.failuresCount).toBe(0);
+  }, 300000);
 });

@@ -6,8 +6,17 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { spawnMmdc } from './mmdc-wrapper.mjs';
 
 // ---------------- Configurable Constants ----------------
-export const NORMALIZED_DEVIATION_THRESHOLD = 0.12; // Allow a bit more variance across many diagrams
-export const POSITION_DEVIATION_THRESHOLD = 10; // Raw pixel avg (informational only)
+// `norm` rescales each position set to its OWN bounding box, so it is
+// scale-invariant: a diagram rendered at half size scores zero. It says
+// something about shape but nothing about size, so it is reported for
+// diagnostics and no longer the primary gate.
+export const NORMALIZED_DEVIATION_THRESHOLD = 0.01;
+// Absolute average node-position error, in px, with no alignment applied. This
+// is the meaningful gate. Measured 0.26px over 70 samples; kept at 2px so
+// ordinary float noise passes but a real regression does not.
+export const POSITION_DEVIATION_THRESHOLD = 2;
+// Average |Δ| of the rendered viewBox width, relative. Measured 0.7%.
+export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
 export const MAX_SAMPLES = process.env.DEVIATION_MAX_SAMPLES ? parseInt(process.env.DEVIATION_MAX_SAMPLES,10) : Infinity;
 export const WIDTH = 800;
 export const HEIGHT = 600;
@@ -101,7 +110,11 @@ async function renderWithMmdc(def, { width, height }) {
       securityLevel: 'loose',
       htmlLabels: false,
       flowchart: { htmlLabels: false },
-      themeVariables: { fontFamily: 'DejaVu Sans, Arial, sans-serif' },
+      // Must match src/index.js's default, or the two sides measure different
+      // fonts and every width differs. Installed for Chrome via fontconfig; see
+      // .devcontainer/setup.sh.
+      fontFamily: 'Open Sans',
+      themeVariables: { fontFamily: 'Open Sans' },
     };
     writeFileSync(mermaidCfgPath, JSON.stringify(mermaidCfg), 'utf8');
     const args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', cfgPath, '-c', mermaidCfgPath];
@@ -500,8 +513,17 @@ async function main(options = {}) {
   }
   console.log(JSON.stringify(report, null, 2));
 
-  // Export minimal summary for test assertion
-  return { avgNorm, avgRaw, failuresCount: failures.length };
+  // Export minimal summary for test assertion. `compared` matters: when a sample
+  // filter excludes everything, the averages above are 0 and every threshold
+  // trivially passes, so callers must check that something was actually measured.
+  return {
+    avgNorm,
+    avgRaw,
+    compared: ok.length,
+    samplesProcessed: samples.length,
+    viewBoxWidthRel: vbWRelAvg,
+    failuresCount: failures.length,
+  };
 }
 
 export async function runDeviationSuite(options) {

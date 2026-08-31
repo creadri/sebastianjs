@@ -26,6 +26,40 @@ As this doesn't require a headless browser, it should be faster to render.
 
 ## How are things so far
 
+### August 2026
+
+The rewrite landed. Instead of letting a hollow DOM compute a wrong layout and
+patching the SVG afterwards, the DOM now measures correctly in the first place:
+jsdom hosts the document and svgdom's geometry engine (vendored, driven by
+fontkit) answers `getBBox`, `getComputedTextLength`, `getCTM` and friends.
+
+Layout in mermaid is pure JS (dagre/ELK) — it was always correct, it was just
+being fed wrong measurements. Fixing the measurements fixed the layout, which
+post-processing structurally could not do: by the time you have the SVG, nodes
+have already been placed from the wrong sizes.
+
+Measured against real Chrome via mermaid-cli, both pinned to `htmlLabels: false`
+and Open Sans:
+
+| diagram | sebastianjs | chrome | Δ width |
+| --- | --- | --- | --- |
+| flowchart TD | 127.3 x 383.3 | 127.4 x 383.4 | 0.08% |
+| flowchart LR | 1050.7 x 170.0 | 1052.1 x 170.0 | 0.13% |
+| sequence | 500.0 x 333.0 | 500.0 x 333.0 | 0.00% |
+| class | 299.2 x 367.0 | 299.7 x 367.0 | 0.17% |
+| state | 121.5 x 358.0 | 121.9 x 358.0 | 0.26% |
+| er | 449.1 x 474.0 | 449.3 x 474.0 | 0.05% |
+
+Individual text runs match Chrome exactly (Δy 0.00, Δx ≤ 0.02, Δheight 0.00);
+node positions land within 0.05px. Regenerate with
+`node scripts/compare-chrome.mjs`.
+
+**Caveat: labels are rendered as SVG `<text>`, not HTML.** Mermaid's default
+puts labels in a `<foreignObject>` and measures them with
+`getBoundingClientRect`, which is CSS layout — not implemented here. So
+`htmlLabels` is forced to `false`. Text metrics on that path match Chrome to
+~0.01%, but markdown inside a label renders as tspans rather than HTML.
+
 ### November 2025
 
 Not Great, mermaid uses a lot of DOM features to perform the layout. So far the goal was to: let an empty shell of a DOM do the math wrongly and get a very wrong layout. Then post process the results and try to mimic the looks. It worked for some demos but I don't think it's the right approach. Looking into svgdom project in order to have a more detailled and implemented DOM.
@@ -53,6 +87,10 @@ const svg = await render(def, {
   theme: 'dark',
   themeVariables: { primaryColor: '#3366ff' },
   themeCSS: '.node rect{ rx:4; ry:4 }',
+  // Viewport hints only — the size of the "page" the diagram is laid out on.
+  // The rendered SVG sizes itself from its own bounding box (width="100%" plus
+  // a max-width style and a viewBox), exactly as mermaid does in a browser and
+  // as mermaid-cli emits.
   width: 800,        // optional (defaults to 800)
   height: 600,       // optional (defaults to 600)
 });
@@ -74,7 +112,8 @@ sebastianjs input.mmd -o output.svg -t dark \
   --theme-vars '{"primaryColor":"#3366ff"}' \
   --theme-css '.node rect{rx:4;ry:4}'
 
-# Set explicit width / height (influences layout + final svg size)
+# Set the viewport the diagram is laid out on. Like mermaid-cli's -w/-H these
+# are layout hints; the emitted SVG still sizes itself from its own bounding box.
 sebastianjs input.mmd -o out.svg -W 1200 -H 700
 ```
 

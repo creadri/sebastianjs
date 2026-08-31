@@ -1,203 +1,98 @@
-import { render } from '../src/index.js';
+import { render, dispose } from '../src/index.js';
+import { spawnMmdc } from '../scripts/mmdc-wrapper.mjs';
 import { JSDOM } from 'jsdom';
-import { execSync, spawn } from 'child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
-import { promises as fsp } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { spawnMmdc, ensurePuppeteerConfigArg } from '../scripts/mmdc-wrapper.mjs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
-// ------------------------- Tunable Test Constants -------------------------
-// Threshold for average node position deviation (in pixels). Lower => stricter.
-// NOTE: Current layouts differ vertically due to spacing algorithm differences.
-// We first attempt a simple linear alignment (translation + uniform scale) before
-// computing residual deviation. Tighten this value as renderer parity improves.
-const POSITION_DEVIATION_THRESHOLD = 15.0; // effective pixels after alignment (raw, informational)
-const NORMALIZED_DEVIATION_THRESHOLD = 0.10; // average normalized (0..1) deviation allowed
-// Max time (ms) to allow the CLI render to finish before considering failure.
-const MMDC_RENDER_TIMEOUT_MS = 20000;
-// Puppeteer launch args (avoid sandbox issues in CI/containers)
-const PUPPETEER_ARGS = ['--no-sandbox','--disable-setuid-sandbox','--disable-gpu','--no-zygote','--disable-dev-shm-usage'];
-// -------------------------------------------------------------------------
+// A single fast parity check against real Chrome, so an obvious regression fails
+// in a normal `npm test` run. The broad sweep lives in samples-deviation.test.js.
+//
+// This replaces an earlier version that could not do its job:
+//   - it probed `mmdc` on PATH, where it is not installed, so it always skipped;
+//   - it asserted on a scale-invariant metric (each position set rescaled to its
+//     own bounding box), which scores a half-size diagram as a perfect match;
+//   - it ran mermaid-cli with default config (htmlLabels: true) against our
+//     htmlLabels: false output, comparing two different rendering modes.
 
-/**
- * Parses SVG and extracts positions of nodes.
- * @param {string} svgString - The SVG content.
- * @returns {Map<string, {x: number, y: number}>} - Map of node IDs to positions.
- */
-function extractNodePositions(svgString) {
-  const dom = new JSDOM(svgString, { contentType: 'image/svg+xml' });
-  const doc = dom.window.document;
-  const nodes = doc.querySelectorAll('.node');
-  const positions = new Map();
+const MMDC = resolve('node_modules', '.bin', 'mmdc');
+const hasMmdc = existsSync(MMDC);
 
-  for (const node of nodes) {
-    const id = node.id || node.getAttribute('id');
-    if (!id) continue;
+// Both sides must measure the same thing: same label mode, same font.
+const MERMAID_CONFIG = {
+  startOnLoad: false,
+  securityLevel: 'loose',
+  htmlLabels: false,
+  flowchart: { htmlLabels: false },
+  class: { htmlLabels: false },
+  fontFamily: 'Open Sans',
+  themeVariables: { fontFamily: 'Open Sans' },
+};
 
-    const transform = node.getAttribute('transform');
-    if (transform) {
-      const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
-      if (match) {
-        const x = parseFloat(match[1]);
-        const y = parseFloat(match[2]);
-        if (!isNaN(x) && !isNaN(y)) {
-          positions.set(id, { x, y });
-        }
-      }
-    }
-  }
-
-  return positions;
-}
-
-/**
- * Calculates the average position deviation between two position maps.
- * @param {Map<string, {x: number, y: number}>} pos1 - Positions from first SVG.
- * @param {Map<string, {x: number, y: number}>} pos2 - Positions from second SVG.
- * @returns {number} - Average deviation in pixels.
- */
-function calculateAverageDeviation(pos1, pos2) {
-  const commonIds = Array.from(pos1.keys()).filter(id => pos2.has(id));
-  if (commonIds.length === 0) return Infinity;
-  // Build arrays
-  const a = commonIds.map(id => pos1.get(id));
-  const b = commonIds.map(id => pos2.get(id));
-  // Compute centroids
-  const centroid = (pts) => pts.reduce((acc,p)=>({x:acc.x+p.x,y:acc.y+p.y}),{x:0,y:0});
-  const ca = centroid(a); ca.x/=a.length; ca.y/=a.length;
-  const cb = centroid(b); cb.x/=b.length; cb.y/=b.length;
-  // Compute scale as average ratio of distances from centroid (avoid divide-by-zero)
-  const distFrom = (c,p)=>Math.hypot(p.x-c.x,p.y-c.y) || 0.0001;
-  let scaleAccum = 0, scaleCount = 0;
-  for (let i=0;i<a.length;i++) { const da=distFrom(ca,a[i]); const db=distFrom(cb,b[i]); if (db>0) { scaleAccum += da/db; scaleCount++; } }
-  const scale = scaleCount? scaleAccum/scaleCount : 1;
-  // After aligning B points to A via translate+scale compute residuals
-  let total = 0;
-  for (let i=0;i<a.length;i++) {
-    const target = a[i];
-    const source = b[i];
-    const sx = cb.x + (source.x - cb.x) * scale;
-    const sy = cb.y + (source.y - cb.y) * scale;
-    const dx = target.x - sx;
-    const dy = target.y - sy;
-    total += Math.hypot(dx, dy);
-  }
-  return total / a.length;
-}
-
-function calculateNormalizedDeviation(pos1, pos2) {
-  const commonIds = Array.from(pos1.keys()).filter(id => pos2.has(id));
-  if (!commonIds.length) return Infinity;
-  const xs1 = commonIds.map(id => pos1.get(id).x);
-  const ys1 = commonIds.map(id => pos1.get(id).y);
-  const xs2 = commonIds.map(id => pos2.get(id).x);
-  const ys2 = commonIds.map(id => pos2.get(id).y);
-  const min = arr => Math.min(...arr);
-  const max = arr => Math.max(...arr);
-  const minX1 = min(xs1), maxX1 = max(xs1); const spanX1 = maxX1 - minX1 || 1;
-  const minY1 = min(ys1), maxY1 = max(ys1); const spanY1 = maxY1 - minY1 || 1;
-  const minX2 = min(xs2), maxX2 = max(xs2); const spanX2 = maxX2 - minX2 || 1;
-  const minY2 = min(ys2), maxY2 = max(ys2); const spanY2 = maxY2 - minY2 || 1;
-  let total = 0;
-  for (const id of commonIds) {
-    const a = pos1.get(id); const b = pos2.get(id);
-    const ax = (a.x - minX1) / spanX1; const ay = (a.y - minY1) / spanY1;
-    const bx = (b.x - minX2) / spanX2; const by = (b.y - minY2) / spanY2;
-    const dx = ax - bx; const dy = ay - by;
-    total += Math.hypot(dx, dy);
-  }
-  return total / commonIds.length;
-}
-
-/**
- * Renders a diagram using mermaid-cli.
- * @param {string} definition - Mermaid definition.
- * @param {Object} options - Options with width and height.
- * @returns {string} - SVG content.
- */
-// Use wrapper's findChromeExecutable
-
-async function writeTempPptrConfig() {
-  const cfgPath = join(process.env.TMPDIR || '/tmp', `seb-pptr-test-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
-  const cfg = { args: PUPPETEER_ARGS };
-  await fsp.writeFile(cfgPath, JSON.stringify(cfg), 'utf8');
-  return cfgPath;
-}
-
-// Use wrapper's spawnMmdc
-
-async function renderWithMermaidCli(definition, options = {}) {
-  const tempDir = tmpdir();
-  const inputFile = join(tempDir, `input_${Date.now()}_${Math.random().toString(36).slice(2)}.mmd`);
-  const outputFile = join(tempDir, `output_${Date.now()}_${Math.random().toString(36).slice(2)}.svg`);
-  let pptrCfg;
-  try {
-    writeFileSync(inputFile, definition, 'utf8');
-    pptrCfg = await writeTempPptrConfig();
-  let args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', pptrCfg];
-  args = await ensurePuppeteerConfigArg(args);
-    if (options.width) args.push('-w', String(options.width));
-    if (options.height) args.push('-H', String(options.height));
-    const env = { ...process.env };
-    // Enforce a timeout manually
-    await Promise.race([
-  spawnMmdc(args, { env, stdio: ['ignore','ignore','pipe'] }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('mmdc render timeout')), MMDC_RENDER_TIMEOUT_MS)),
-    ]);
-    if (!existsSync(outputFile)) throw new Error('mmdc did not produce output file');
-    return readFileSync(outputFile, 'utf8');
-  } finally {
-    try { if (inputFile && existsSync(inputFile)) unlinkSync(inputFile); } catch {}
-    try { if (outputFile && existsSync(outputFile)) unlinkSync(outputFile); } catch {}
-    try { if (pptrCfg && existsSync(pptrCfg)) unlinkSync(pptrCfg); } catch {}
-  }
-}
-
-describe('SebastianJS vs Mermaid-CLI Comparison', () => {
-  // Skip if mermaid-cli is not available
-  const hasMermaidCli = (() => {
-    try {
-      execSync('mmdc --version', { stdio: 'pipe' });
-      return true;
-    } catch {
-      return false;
-    }
-  })();
-
-  (hasMermaidCli ? it : it.skip)('should have low position deviation compared to mermaid-cli', async () => {
-    const definition = `
-graph TD
+const DEFINITION = `graph TD
     A[Start] --> B{Is it working?}
     B -->|Yes| C[Great!]
     B -->|No| D[Debug]
     D --> B
-    C --> E[End]
-`;
+    C --> E[End]`;
 
-    const options = { width: 800, height: 600 };
+function parse(svg) {
+  const doc = new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
+  const viewBox = (doc.documentElement.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+  const nodes = new Map();
+  for (const g of doc.querySelectorAll('g.node')) {
+    const m = (g.getAttribute('transform') || '').match(/translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/);
+    if (!m) continue;
+    // Strip mermaid's per-render id prefix/suffix so ids line up across renderers.
+    const id = (g.getAttribute('id') || '').replace(/^flowchart-/, '').replace(/-\d+$/, '');
+    nodes.set(id, { x: +m[1], y: +m[2] });
+  }
+  return { viewBox: viewBox.length === 4 ? viewBox : null, nodes };
+}
 
-    // Render with both tools
-    const sebastianSvg = await render(definition, options);
-  const cliSvg = await renderWithMermaidCli(definition, options);
+async function renderWithMermaidCli(definition) {
+  const dir = mkdtempSync(join(tmpdir(), 'seb-cmp-'));
+  writeFileSync(join(dir, 'in.mmd'), definition, 'utf8');
+  writeFileSync(join(dir, 'cfg.json'), JSON.stringify(MERMAID_CONFIG), 'utf8');
+  writeFileSync(
+    join(dir, 'pptr.json'),
+    JSON.stringify({ args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] }),
+    'utf8'
+  );
+  await spawnMmdc(
+    ['-i', join(dir, 'in.mmd'), '-o', join(dir, 'out.svg'),
+     '--puppeteerConfigFile', join(dir, 'pptr.json'), '-c', join(dir, 'cfg.json')],
+    { stdio: ['ignore', 'ignore', 'pipe'] }
+  );
+  return readFileSync(join(dir, 'out.svg'), 'utf8');
+}
 
-    // Extract positions
-    const sebastianPositions = extractNodePositions(sebastianSvg);
-    const cliPositions = extractNodePositions(cliSvg);
+afterAll(async () => { await dispose(); });
 
-    // Calculate deviation
-  const averageDeviation = calculateAverageDeviation(sebastianPositions, cliPositions);
-  const normalizedDeviation = calculateNormalizedDeviation(sebastianPositions, cliPositions);
+describe('SebastianJS vs mermaid-cli', () => {
+  (hasMmdc ? it : it.skip)('places nodes where Chrome does', async () => {
+    const [ours, chrome] = await Promise.all([
+      render(DEFINITION, { mermaidConfig: { securityLevel: 'loose' } }),
+      renderWithMermaidCli(DEFINITION),
+    ]);
 
-  console.log(`Average position deviation (raw): ${averageDeviation.toFixed(2)} pixels`);
-  console.log(`Average normalized deviation: ${normalizedDeviation.toFixed(4)} (threshold ${NORMALIZED_DEVIATION_THRESHOLD})`);
-    console.log(`Sebastian positions:`, Array.from(sebastianPositions.entries()));
-    console.log(`CLI positions:`, Array.from(cliPositions.entries()));
+    const a = parse(ours);
+    const b = parse(chrome);
 
-    // Assert low deviation
-  // Raw deviation logged for diagnostics; main assertion uses normalized metric.
-  expect(normalizedDeviation).toBeLessThan(NORMALIZED_DEVIATION_THRESHOLD);
-  // Force cleanup of lingering timers (mermaid / jsdom) to avoid open handles
-  setImmediate(()=>{});
-  }, 30000); // Longer timeout for CLI execution
+    // Guard against a vacuous pass if the id scheme ever changes.
+    const shared = [...a.nodes.keys()].filter((id) => b.nodes.has(id));
+    expect(shared.length).toBeGreaterThanOrEqual(5);
+
+    // Absolute, unaligned deviation. Typically ~0.05px.
+    for (const id of shared) {
+      expect(a.nodes.get(id).x).toBeCloseTo(b.nodes.get(id).x, 0);
+      expect(a.nodes.get(id).y).toBeCloseTo(b.nodes.get(id).y, 0);
+    }
+
+    // Overall size, which the previous scale-invariant metric could not see.
+    expect(a.viewBox).not.toBeNull();
+    expect(b.viewBox).not.toBeNull();
+    expect(a.viewBox[2]).toBeCloseTo(b.viewBox[2], -0.5); // width within ~1px
+    expect(a.viewBox[3]).toBeCloseTo(b.viewBox[3], -0.5); // height within ~1px
+  }, 60000);
 });
