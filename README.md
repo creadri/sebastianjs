@@ -143,6 +143,37 @@ No native build step and no headless browser. Text is measured with
 [fontkit](https://github.com/foliojs/fontkit) and geometry with a vendored copy
 of [svgdom](https://github.com/svgdotjs/svgdom)'s maths, both pure JavaScript.
 
+### Mermaid is pinned, deliberately
+
+`mermaid` is an **exact** dependency, not a range, held at the version
+[mermaid-cli](https://github.com/mermaid-js/mermaid-cli) pins in its own
+lockfile. Correctness here is measured as agreement with mermaid-cli's Chrome
+output, so the two must run the same mermaid build -- otherwise the reference
+moves and the parity numbers stop meaning anything.
+
+It matters more than it sounds. Mermaid reaches into the DOM as it renders, and
+this package supplies that DOM: mermaid 11.17 began building its styles with
+`new CSSStyleSheet()`, which threw on every render against a global that was
+never forwarded. A floating range shipped that to users while the suite stayed
+green on an older locked copy.
+
+The sample corpus is pinned the same way -- `npm run fetch:samples` clones the
+`mermaid@<version>` tag rather than the default branch, so demos never use
+syntax the pinned mermaid cannot parse.
+
+To move to a newer mermaid, upgrade mermaid-cli and follow it:
+
+```bash
+npm install -D @mermaid-js/mermaid-cli@latest
+npm run sync:mermaid      # pin mermaid to whatever that release locks
+npm install
+npm run fetch:samples     # refresh the corpus at the matching tag
+npm test && npm run deviation
+```
+
+`npm run check:mermaid` verifies the pin still matches without changing it, and
+`__tests__/versions.test.js` fails offline if a range ever creeps back in.
+
 Earlier versions needed node-canvas, and with it cairo, pango and a compiler
 toolchain. That dependency is gone — `npm install sebastianjs` is enough.
 
@@ -160,9 +191,9 @@ Thanks for the fonts under `fonts/` with their licenses:
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2026-08-31T19:41:58.081Z_ · Node v22.23.2
+_Last updated: 2026-08-31T22:16:42.051Z_ · Node v22.23.2
 
-Rendering 292 sample diagrams from `samples/mermaid-demos`, both renderers on the
+Rendering 228 sample diagrams from `samples/mermaid-demos`, both renderers on the
 same mermaid config (Open Sans, default HTML labels). Regenerate with `npm run benchmark`.
 
 The comparison is library-versus-CLI, which is what you would actually choose
@@ -171,21 +202,21 @@ headless Chromium for each invocation. That process startup is most of the gap.
 
 
 
-Not every sample renders in either tool: sebastianjs failed on 58, mermaid-cli failed on 54. Only successful renders are timed.
+Not every sample renders in either tool: sebastianjs failed on 7, mermaid-cli failed on 3. Only successful renders are timed.
 
 
-SebastianJS is **33x faster** per diagram.
+SebastianJS is **35x faster** per diagram.
 
 ### Summary
 
 | Metric | sebastianjs | mermaid-cli |
 | --- | --- | --- |
-| Samples | 292 | 292 |
-| Successful | 234 | 238 |
-| Avg ms | 58.02 | 1932.72 |
-| Total ms | 13577.00 | 459988.00 |
-| Min ms | 3.00 | 1557.00 |
-| Max ms | 419.00 | 2479.00 |
+| Samples | 228 | 228 |
+| Successful | 221 | 225 |
+| Avg ms | 58.96 | 2084.59 |
+| Total ms | 13030.00 | 469033.00 |
+| Min ms | 4.00 | 1662.00 |
+| Max ms | 400.00 | 2863.00 |
 
 ### Average render time
 
@@ -193,7 +224,7 @@ SebastianJS is **33x faster** per diagram.
 xychart-beta
   title "Average Render Time (ms)"
   x-axis [sebastianjs, mermaid-cli]
-  bar [58.02, 1932.72]
+  bar [58.96, 2084.59]
 ```
 
 <!-- BENCHMARK_END -->

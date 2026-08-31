@@ -16,11 +16,38 @@ All notable changes to this project will be documented in this file.
   consumers.
 
 ### Changed
-- Dependency ranges are now caret ranges pinned to the majors the suite is
-  tested against (`mermaid@^11.17.2`, `jsdom@^26.1.0`, `dompurify@^3.2.6`,
-  `fontkit@^2.0.4`, `image-size@^2.0.2`). They were open-ended `>=` ranges, so
-  installs silently floated onto untested majors -- which is how the mermaid
-  11.17 break reached users despite a green suite.
+- **mermaid is now an exact dependency**, held at the version mermaid-cli pins
+  in its own lockfile (11.9.0). Parity is defined as agreement with
+  mermaid-cli's Chrome output, so rendering against a different mermaid than
+  mmdc moves the reference and makes the numbers meaningless. `mermaid` was a
+  `>=10.11.10` range while the lockfile held 11.10.1 and consumers resolved
+  11.17.2.
+- The remaining runtime dependencies are caret ranges pinned to the tested
+  majors (`jsdom@^26.1.0`, `dompurify@^3.2.6`, `fontkit@^2.0.4`,
+  `image-size@^2.0.2`). All were open-ended `>=`, so a fresh install could
+  float onto an untested major -- jsdom's declared floor of 24.1.0 would have
+  resolved 30.x.
+- `npm run fetch:samples` now clones the `mermaid@<pinned version>` tag instead
+  of the default branch, so the corpus matches the mermaid under test rather
+  than drifting with upstream `develop`. `manifest.json` records the version
+  and ref it was built from.
+
+  This shrank the corpus from 292 samples to 228: the 64 that went away are
+  `venn`, `wardley`, `treeView`, `railroad`, `ishikawa`, `usecase` and
+  `eventmodeling` demos -- diagram types that do not exist in the pinned
+  mermaid. They had been counted as render failures. Failures drop from 58 to
+  7 for SebastianJS and 54 to 3 for mermaid-cli; of the remaining 7, three
+  (`classchart__8`, `error__2`, `error__4`) fail under mermaid-cli too, leaving
+  mindmap and zenuml as the only genuine gaps. Node deviation across the
+  corpus is unchanged at 0.016px over 86 compared diagrams.
+
+### Added
+- `npm run sync:mermaid` reads mermaid-cli's lockfile from its release tag and
+  pins `mermaid` to match; `npm run check:mermaid` verifies without writing.
+- `__tests__/versions.test.js`: offline guards that mermaid is pinned exactly,
+  that the installed copy matches, that mermaid-cli shares the hoisted mermaid
+  rather than nesting its own, that the corpus came from the matching tag, and
+  that no runtime dependency uses an open-ended range.
 
 ---
 

@@ -8,6 +8,8 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "cli": "node ./bin/sebastianjs",
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
+    "sync:mermaid": "node ./scripts/sync-mermaid-version.mjs",
+    "check:mermaid": "node ./scripts/sync-mermaid-version.mjs --check",
     "build:site": "node ./scripts/build-site.mjs",
     "benchmark": "node ./scripts/benchmark.mjs",
     "deviation": "node ./scripts/deviation-suite.mjs"
@@ -45,7 +47,7 @@
     "fontkit": "^2.0.4",
     "image-size": "^2.0.2",
     "jsdom": "^26.1.0",
-    "mermaid": "^11.17.2"
+    "mermaid": "11.9.0"
   },
   "devDependencies": {
     "@babel/core": ">=7.28.3",

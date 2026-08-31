@@ -1,8 +1,0 @@
-railroad-ebnf-beta
-title "URL Grammar"
-
-url = protocol "://" domain path? ;
-protocol = "http" | "https" | "ftp" ;
-domain = label ( "." label )* ;
-label = letter ( letter | digit | "-" )* ;
-path = "/" segment ( "/" segment )* ;

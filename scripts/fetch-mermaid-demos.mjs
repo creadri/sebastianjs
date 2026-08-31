@@ -9,6 +9,24 @@ import { JSDOM } from 'jsdom';
 
 const REPO = 'https://github.com/mermaid-js/mermaid.git';
 
+// Demos are pulled from the tag matching the mermaid version this package is
+// pinned to -- not from the default branch. The corpus and the renderer under
+// test have to describe the same mermaid: demos on `develop` routinely use
+// syntax a released mermaid cannot parse, which shows up as phantom parity
+// failures that no amount of geometry work can fix.
+async function pinnedMermaidVersion() {
+  const pkgPath = resolve(import.meta.dirname, '..', 'package.json');
+  const version = JSON.parse(await readFile(pkgPath, 'utf8')).dependencies?.mermaid;
+  if (!version) throw new Error('No mermaid dependency in package.json.');
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(
+      `mermaid must be pinned to an exact version for the sample corpus to be ` +
+      `reproducible, found "${version}". Run \`npm run sync:mermaid\`.`
+    );
+  }
+  return version;
+}
+
 async function exec(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: 'inherit', ...opts });
@@ -30,9 +48,15 @@ async function* walk(dir) {
 }
 
 async function main() {
+  // `--ref <git-ref>` overrides the pin, for checking upcoming demos.
+  const refArg = process.argv.indexOf('--ref');
+  const version = await pinnedMermaidVersion();
+  const ref = refArg !== -1 ? process.argv[refArg + 1] : `mermaid@${version}`;
+
   const tmp = await mkdtemp(join(tmpdir(), 'mermaid-demos-'));
   const repoDir = tmp;
-  await exec('git', ['clone', '--depth', '1', REPO, repoDir]);
+  console.error(`Cloning ${REPO} at ${ref}`);
+  await exec('git', ['clone', '--depth', '1', '--branch', ref, REPO, repoDir]);
   const demosDir = join(repoDir, 'demos');
 
   const samplesRoot = resolve('samples/mermaid-demos');
@@ -78,8 +102,12 @@ async function main() {
     }
   }
 
-  await writeFile(join(samplesRoot, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
-  console.error(`Extracted ${manifest.length} mermaid samples to ${samplesRoot}`);
+  await writeFile(
+    join(samplesRoot, 'manifest.json'),
+    JSON.stringify({ mermaidVersion: version, ref, fetchedAt: new Date().toISOString(), samples: manifest }, null, 2),
+    'utf8'
+  );
+  console.error(`Extracted ${manifest.length} mermaid samples (${ref}) to ${samplesRoot}`);
 }
 
 main().catch((err) => {
