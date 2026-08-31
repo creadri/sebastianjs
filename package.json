@@ -1,6 +1,6 @@
 {
   "name": "sebastianjs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SebastianJS is a mermaid wrapper designed to make it able to perform server-side svg renderers without needing a headless browser.",
   "type": "module",
   "main": "src/index.js",
@@ -41,11 +41,11 @@
     "access": "public"
   },
   "dependencies": {
-    "dompurify": ">=3.2.6",
-    "jsdom": ">=24.1.0",
-    "mermaid": ">=10.11.10",
-    "fontkit": ">=2.0.4",
-    "image-size": ">=2.0.2"
+    "dompurify": "^3.2.6",
+    "fontkit": "^2.0.4",
+    "image-size": "^2.0.2",
+    "jsdom": "^26.1.0",
+    "mermaid": "^11.17.2"
   },
   "devDependencies": {
     "@babel/core": ">=7.28.3",

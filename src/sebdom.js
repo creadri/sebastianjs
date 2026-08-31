@@ -61,6 +61,10 @@ export async function withGlobalDOM(window, fn) {
     'NodeFilter', 'CustomEvent', 'Event', 'MutationObserver', 'ResizeObserver',
     'IntersectionObserver', 'DOMRect', 'getComputedStyle', 'matchMedia',
     'requestAnimationFrame', 'cancelAnimationFrame',
+    // Constructable stylesheets. mermaid >= 11.17 builds its user styles with
+    // `new CSSStyleSheet()`, so an absent global fails every render with
+    // "CSSStyleSheet is not defined" before any diagram code runs.
+    'CSSStyleSheet', 'StyleSheet', 'CSSRule', 'CSSStyleDeclaration',
   ];
   const saved = new Map();
   for (const key of keys) {

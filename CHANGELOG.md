@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.1.1] - 2026-08-31
+
+### Fixed
+- `CSSStyleSheet is not defined` on every render against mermaid >= 11.17.
+  Mermaid now builds its user styles with `new CSSStyleSheet()`, and the
+  constructor was not among the globals forwarded to the render scope. Since a
+  fresh install resolves the newest mermaid, this broke 0.1.0 for all new
+  consumers.
+
+### Changed
+- Dependency ranges are now caret ranges pinned to the majors the suite is
+  tested against (`mermaid@^11.17.2`, `jsdom@^26.1.0`, `dompurify@^3.2.6`,
+  `fontkit@^2.0.4`, `image-size@^2.0.2`). They were open-ended `>=` ranges, so
+  installs silently floated onto untested majors -- which is how the mermaid
+  11.17 break reached users despite a green suite.
+
+---
+
 ## [0.1.0] - 2026-08-31
 
 Rendering was rebuilt around a DOM that measures correctly, instead of letting

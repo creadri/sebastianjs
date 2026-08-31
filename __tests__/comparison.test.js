@@ -79,7 +79,7 @@ function parse(svg) {
     const m = (g.getAttribute('transform') || '').match(/translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/);
     if (!m) continue;
     // Strip mermaid's per-render id prefix/suffix so ids line up across renderers.
-    const id = (g.getAttribute('id') || '').replace(/^flowchart-/, '').replace(/-\d+$/, '');
+    const id = (g.getAttribute('id') || '').replace(/^.*?flowchart-/, '').replace(/-\d+$/, '');
     nodes.set(id, { x: +m[1], y: +m[2] });
   }
   return { viewBox: viewBox.length === 4 ? viewBox : null, nodes };
