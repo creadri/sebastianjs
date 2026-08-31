@@ -1,8 +1,12 @@
 name: deploy-pages
 
 on:
+  # Only on a release tag. The site embeds benchmark and parity figures, so
+  # building it from arbitrary main commits publishes numbers that describe no
+  # released version. workflow_dispatch stays for rebuilding on demand.
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:

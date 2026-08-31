@@ -1,9 +1,17 @@
 name: release-please
 
 on:
+  # Not on every commit to main.
+  #
+  # Caveat worth knowing: release-please is designed to watch main and keep a
+  # release PR open, and merging that PR is what creates the tag. Running it
+  # *from* a tag inverts that -- by the time it fires, the release it would
+  # have proposed already exists, so it can only open a PR for the next one.
+  # workflow_dispatch is the trigger that will actually do useful work here.
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
