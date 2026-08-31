@@ -152,3 +152,56 @@ describe('paths', () => {
     expect(p.getBBox().width).toBeCloseTo(100, 3);
   });
 });
+
+describe('html labels (foreignObject)', () => {
+  // Reference values measured in Chromium via puppeteer against mermaid's own
+  // label markup. See src/geometry/html.js for the model.
+  const label = (inner, { wrap = false } = {}) => {
+    const style = document.createElement('style');
+    style.textContent = '.nodeLabel, .nodeLabel p { font-family: Open Sans; font-size: 16px; margin: 0; }';
+    document.body.appendChild(style);
+    const host = document.createElement('div');
+    host.innerHTML = wrap
+      ? `<div style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel">${inner}</span></div>`
+      : `<div style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel">${inner}</span></div>`;
+    document.body.appendChild(host);
+    return host.firstChild.getBoundingClientRect();
+  };
+
+  test.each([
+    ['<p>A</p>', 10.13],
+    ['<p>End</p>', 28.5],
+    ['<p>Short</p>', 40.45],
+    ['<p>edge label</p>', 76.34],
+  ])('width of %p matches Chrome', (inner, expected) => {
+    expect(label(inner).width).toBeCloseTo(expected, 1);
+  });
+
+  test('UA bold applies to <b> without any stylesheet saying so', () => {
+    // mermaid renders markdown emphasis as bare <b>/<i>; if the UA default is
+    // missed the run measures as regular and every such label is too narrow.
+    const bold = label('<p>Plain <b>bold</b> here</p>').width;
+    const plain = label('<p>Plain bold here</p>').width;
+    expect(bold).toBeCloseTo(114.09, 1);
+    expect(bold).toBeGreaterThan(plain);
+  });
+
+  test('line-height 1.5 at 16px is exactly 24px per line', () => {
+    expect(label('<p>One</p>').height).toBe(24);
+    expect(label('<p>First line<br>Second line</p>').height).toBe(48);
+  });
+
+  test('nowrap clamps to max-width so mermaid re-measures', () => {
+    // mermaid switches to wrapping mode when the measured width equals the
+    // max-width it asked for, so the clamp has to be reported exactly.
+    const long = 'This is a deliberately long node label that mermaid should wrap onto several lines';
+    expect(label(`<p>${long}</p>`).width).toBe(200);
+  });
+
+  test('wrapping mode lays out at the given width', () => {
+    const long = 'This is a deliberately long node label that mermaid should wrap onto several lines';
+    const r = label(`<p>${long}</p>`, { wrap: true });
+    expect(r.width).toBe(200);
+    expect(r.height).toBe(96); // Chrome: 4 lines x 24
+  });
+});

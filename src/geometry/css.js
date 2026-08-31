@@ -13,6 +13,7 @@
 
 /** Only these affect measurement; everything else is ignored. */
 const TRACKED = new Set([
+  // text metrics (SVG and HTML)
   'font-size',
   'font-family',
   'font-weight',
@@ -20,6 +21,23 @@ const TRACKED = new Set([
   'letter-spacing',
   'text-anchor',
   'dominant-baseline',
+  // HTML box model, for labels inside <foreignObject>
+  'display',
+  'white-space',
+  'line-height',
+  'text-align',
+  'max-width',
+  'width',
+  'padding',
+  'padding-left',
+  'padding-right',
+  'padding-top',
+  'padding-bottom',
+  'margin',
+  'margin-left',
+  'margin-right',
+  'margin-top',
+  'margin-bottom',
 ]);
 
 const RULES = Symbol.for('sebastianjs.cssRules');

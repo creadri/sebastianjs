@@ -11,6 +11,7 @@ import * as regex from './vendor/regex.js';
 import { getSegments, getFontDetails, FONT_REGISTRY } from './bbox.js';
 import { textAdvance } from './text.js';
 import { createDefaultRegistry } from './fonts.js';
+import { htmlBoundingRect } from './html.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -162,6 +163,24 @@ export function installGeometry(window, { fontRegistry } = {}) {
 
   define('createSVGMatrix', function createSVGMatrix() {
     return new SVGMatrix();
+  });
+
+  // HTML elements: jsdom implements no layout, so mermaid's foreignObject labels
+  // all measure as zero without this. See html.js for the model.
+  const defineHtml = (name, value) =>
+    Object.defineProperty(window.HTMLElement.prototype, name, {
+      value,
+      configurable: true,
+      writable: true,
+    });
+
+  defineHtml('getBoundingClientRect', function getBoundingClientRect() {
+    return htmlBoundingRect(this);
+  });
+
+  Object.defineProperties(window.HTMLElement.prototype, {
+    offsetWidth: { get() { return htmlBoundingRect(this).width; }, configurable: true },
+    offsetHeight: { get() { return htmlBoundingRect(this).height; }, configurable: true },
   });
 
   return registry;

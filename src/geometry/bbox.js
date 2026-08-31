@@ -15,36 +15,12 @@ import { NodeFilter } from './vendor/NodeFilter.js';
 import { textBBox } from './text.js';
 import { parseWeight, parseItalic } from './fonts.js';
 import { cssStyleFor } from './css.js';
+import { resolveLength } from './units.js';
 
 /** Where the adapter stashes the FontRegistry on each Document. */
 export const FONT_REGISTRY = Symbol.for('sebastianjs.fontRegistry');
 
 const childrenOf = (node) => Array.prototype.slice.call(node.childNodes);
-
-/**
- * Resolve an SVG coordinate that may carry a unit. parseFloat alone silently
- * reads "1.1em" as 1.1, which collapses every line-height mermaid emits (it
- * positions tspans with dy="1.1em") into roughly a pixel.
- */
-const resolveLength = (value, fontSize) => {
-  if (value == null || value === '') return NaN;
-  const match = String(value).trim().match(/^(-?[\d.]+)\s*(px|em|rem|ex|pt|pc|in|cm|mm|%)?$/);
-  if (!match) return NaN;
-  const n = parseFloat(match[1]);
-  if (!Number.isFinite(n)) return NaN;
-  switch (match[2]) {
-    case 'em': return n * fontSize;
-    case 'rem': return n * 16; // no root font-size tracking; 16 is the CSS initial
-    case 'ex': return n * fontSize * 0.5; // approximation: real ex is font.xHeight
-    case 'pt': return (n * 4) / 3;
-    case 'pc': return n * 16;
-    case 'in': return n * 96;
-    case 'cm': return (n * 96) / 2.54;
-    case 'mm': return (n * 96) / 25.4;
-    case '%': return NaN; // percentage of the viewport; not modelled
-    default: return n;
-  }
-};
 
 /**
  * Elements that are never painted where they sit. getBBox on one directly is
