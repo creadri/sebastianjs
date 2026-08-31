@@ -1,6 +1,9 @@
 {
   "name": "SebastianJS Dev",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   "postCreateCommand": "bash .devcontainer/setup.sh && npm ci",
   "containerEnv": {
     "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
