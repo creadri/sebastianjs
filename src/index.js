@@ -2,6 +2,7 @@ import { sebDOM, withGlobalDOM } from './sebdom.js';
 import { createDefaultRegistry } from './geometry/fonts.js';
 import { FONT_REGISTRY } from './geometry/bbox.js';
 import { IMAGE_OPTIONS } from './geometry/images.js';
+import { flattenForeignObjects } from './geometry/flatten.js';
 
 // mermaid (and the d3 and DOMPurify instances inside it) is a module singleton
 // that binds to whichever window exists when it is first imported. Building a
@@ -52,6 +53,50 @@ function numericEntities(svg, document) {
   });
 }
 
+/**
+ * Rewrite the HTML labels in a finished diagram as SVG <text>.
+ *
+ * mermaid removes its element from the document before render() returns, so the
+ * markup is parsed back in to do this. That is not a workaround but the point:
+ * the emitted SVG carries the diagram's own <style>, so re-attaching it puts
+ * the labels back under exactly the cascade that measured them.
+ */
+async function flattenLabelsIn(svg, document) {
+  const holder = document.createElement('div');
+  document.body.appendChild(holder);
+  try {
+    holder.innerHTML = svg;
+    const root = holder.firstElementChild;
+    if (!root) return svg;
+    await settleImages(holder);
+    flattenForeignObjects(root);
+    return holder.innerHTML;
+  } finally {
+    holder.remove();
+  }
+}
+
+/**
+ * Wait for the <img> elements in a re-parsed diagram to report their intrinsic
+ * size, the same way mermaid waited for them when it measured the label.
+ *
+ * Reading `complete` is what starts the load (see geometry/images.js); the
+ * resolved size lives on the element, so a freshly parsed copy of the same
+ * markup knows nothing until it has been asked. Without this an image label
+ * measures 0x0 and its box has nothing to draw.
+ */
+function settleImages(root) {
+  const pending = [];
+  for (const img of Array.from(root.getElementsByTagName('img'))) {
+    if (img.complete) continue;
+    pending.push(new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+    }));
+  }
+  return Promise.all(pending);
+}
+
 let domPromise = null;
 let queue = Promise.resolve();
 let renderCounter = 0;
@@ -93,6 +138,15 @@ export async function dispose() {
  *                                   non-browser SVG consumers (librsvg, resvg,
  *                                   Inkscape) can actually render — at the cost
  *                                   of showing raw HTML and entities literally.
+ * @param {boolean} [options.flattenLabels] rewrite the <foreignObject> HTML
+ *                                   labels as SVG <text> after rendering, so the
+ *                                   output renders in librsvg, resvg and
+ *                                   Inkscape. Unlike htmlLabels:false the
+ *                                   diagram keeps the geometry it was laid out
+ *                                   with, and markdown emphasis, entities and
+ *                                   raw HTML survive as styled text. Labels
+ *                                   holding an <img> or an icon-pack <svg> are
+ *                                   left as <foreignObject>.
  * @param {boolean} [options.allowRemoteImages] fetch http(s) <img> sources to
  *                                   measure them. Off by default: rendering
  *                                   should not perform network I/O unasked.
@@ -122,6 +176,7 @@ async function renderOne(definition, options) {
     fontFamily = 'Open Sans',
     fontRegistry,
     htmlLabels = true,
+    flattenLabels = false,
     allowRemoteImages = false,
     imageTimeoutMs,
     iconPacks,
@@ -169,7 +224,8 @@ async function renderOne(definition, options) {
       // second render in the same process collides with the first.
       const id = `sebastianjs-${++renderCounter}`;
       const { svg } = await mermaid.render(id, definition, container);
-      return numericEntities(selfCloseVoidElements(svg), document);
+      const flat = flattenLabels ? await flattenLabelsIn(svg, document) : svg;
+      return numericEntities(selfCloseVoidElements(flat), document);
     });
   } finally {
     container.remove();

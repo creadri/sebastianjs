@@ -38,6 +38,15 @@ const TRACKED = new Set([
   'margin-right',
   'margin-top',
   'margin-bottom',
+  // Paint, not metrics. Nothing measures these; flatten.js reads them to give
+  // the <text> it emits the colour the HTML label would have painted.
+  'color',
+  'background-color',
+  // Where a replaced box sits relative to the baseline. It does not change the
+  // measured width or height either, but it decides where flatten.js draws the
+  // <image> it emits for an <img>. mermaid's `.label-icon` rule is the only
+  // place it appears.
+  'vertical-align',
 ]);
 
 const RULES = Symbol.for('sebastianjs.cssRules');

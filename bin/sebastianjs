@@ -9,7 +9,7 @@ import { render } from '../src/index.js';
 
 
 function parseArgs(argv) {
-  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, width: 800, height: 600 };
+  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, width: 800, height: 600, flattenLabels: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -26,6 +26,8 @@ function parseArgs(argv) {
       args.width = Number(argv[++i]);
     } else if (a === '-H' || a === '--height') {
       args.height = Number(argv[++i]);
+    } else if (a === '--flatten-labels') {
+      args.flattenLabels = true;
     } else if (a === '-h' || a === '--help') {
       args.help = true;
     } else {
@@ -45,7 +47,8 @@ async function readStdin() {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [-W width] [-H height]');
+  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [-W width] [-H height] [--flatten-labels]');
+    console.error('  --flatten-labels  rewrite HTML labels as SVG <text> so librsvg/resvg/Inkscape can render them');
     process.exit(0);
   }
 
@@ -72,6 +75,7 @@ async function main() {
       themeVariables: args.themeVariables || undefined,
       width: args.width,
       height: args.height,
+      flattenLabels: args.flattenLabels,
     });
     if (args.output) {
       await writeFile(args.output, svg, 'utf8');

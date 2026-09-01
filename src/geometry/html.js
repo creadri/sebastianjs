@@ -112,6 +112,20 @@ function fontFor(node, registry) {
   };
 }
 
+/**
+ * The value of an inherited property for an element, resolved through the same
+ * cascade measurement uses. Exported for flatten.js, which needs text-align and
+ * colour from the very rules that shaped the lines.
+ */
+export function inheritedProperty(el, property) {
+  return inherited(el, property);
+}
+
+/** As above, but without walking ancestors — for properties that do not inherit. */
+export function declaredProperty(el, property) {
+  return declared(el, property);
+}
+
 const isBlock = (el) => {
   const display = declared(el, 'display');
   if (display) return display === 'block' || display.startsWith('table') || display === 'list-item';
@@ -215,6 +229,9 @@ function collectBlocks(root, registry) {
             text,
             nowrap: ws === 'nowrap' || ws === 'pre',
             font: fontFor(child, registry),
+            // Kept so flatten.js can resolve the run's colour when it rewrites
+            // this label as <text>; measurement never reads it.
+            el: child.parentNode,
           });
         }
         continue;
@@ -227,7 +244,10 @@ function collectBlocks(root, registry) {
         continue;
       }
       if (tag === 'img' || tag === 'svg') {
-        current.push({ type: 'box', ...replacedSize(child) });
+        const size = replacedSize(child);
+        // `el` and `verticalAlign` are for flatten.js only; neither changes a
+        // measured width or height.
+        current.push({ type: 'box', el: child, verticalAlign: verticalAlignOf(child), ...size });
         continue;
       }
       if (isBlock(child)) {
@@ -284,6 +304,27 @@ function replacedSize(el) {
     width: Number.isFinite(width) ? width : 0,
     height: Number.isFinite(height) ? height : 0,
   };
+}
+
+/**
+ * Where a replaced box sits relative to the line's baseline.
+ *
+ * Only the length form is resolvable here — the keywords need the strut's font
+ * metrics and the line box's height, which belong to whoever lays the line out,
+ * so they are passed through by name. mermaid emits exactly one of these, the
+ * `vertical-align: -0.125em` on its `.label-icon` rule.
+ *
+ * @returns {{keyword: string, raise: number}} `raise` is how far the box's
+ *          bottom edge sits above the baseline, in px, for the length form.
+ */
+function verticalAlignOf(el) {
+  const declaration = declared(el, 'vertical-align');
+  if (!declaration) return { keyword: 'baseline', raise: 0 };
+
+  const value = declaration.trim().toLowerCase();
+  const length = resolveLength(value, fontFor(el, null).fontSize);
+  if (Number.isFinite(length)) return { keyword: 'length', raise: length };
+  return { keyword: value, raise: 0 };
 }
 
 // Characters after which CSS allows a line break even without a space. This is a
@@ -351,16 +392,35 @@ const advance = (text, font) =>
 
 /**
  * Lay a block's items into lines.
+ *
+ * Each line keeps both its advance width and the runs that produced it, so a
+ * caller that wants to re-emit the label as SVG <text> (see flatten.js) gets
+ * exactly the text the width was measured from. Runs are merged back per source
+ * item, so a wrapped run is one string per line rather than one per chunk and
+ * an SVG renderer can shape and kern it as a unit.
+ *
+ * Each run also carries the x it starts at, measured from the line's left edge.
+ * That is tracked in `cursor`, deliberately kept apart from the `lineWidth`
+ * arithmetic rather than derived from it: summing the same advances in a
+ * different order moves a measured width by an ulp, and every node in the
+ * diagram is sized from those widths.
+ *
  * @param {Array} items
  * @param {number} available  Infinity when white-space forbids wrapping
- * @returns {{ widths: number[] }} advance width of each line
+ * @returns {{ lines: Array<{width: number, runs: Array}>, minContent: number }}
  */
 function layoutLines(items, available) {
-  const widths = [];
+  const lines = [];
+  let runs = [];
   let lineWidth = 0;
+  // Where the next run starts, from the left edge of the line. Only positions
+  // replaced boxes and the text around them; never feeds back into a width.
+  let cursor = 0;
   // Trailing whitespace does not contribute to a line's width, so it is held
-  // back until another chunk arrives on the same line.
+  // back until another chunk arrives on the same line. The text is held with it
+  // so the emitted run keeps the spaces that were measured.
   let pendingSpace = 0;
+  let pendingText = [];
   // The widest run with no break opportunity inside it. A box can never be
   // narrower than this, even when max-width or an explicit width says otherwise:
   // Chrome reports 227.45 for a 200px-max label whose longest unbreakable run is
@@ -369,10 +429,27 @@ function layoutLines(items, available) {
   // A break may only be taken where the previous chunk offered one.
   let breakable = false;
 
-  const endLine = () => {
-    widths.push(lineWidth);
-    lineWidth = 0;
+  const addText = (text, item, width) => {
+    if (!text) return;
+    const last = runs[runs.length - 1];
+    if (last?.type === 'text' && last.item === item) last.text += text;
+    else runs.push({ type: 'text', text, item, font: item.font, el: item.el, x: cursor });
+    cursor += width;
+  };
+
+  const flushPending = () => {
+    for (const held of pendingText) addText(held.text, held.item, held.width);
+    pendingText = [];
     pendingSpace = 0;
+  };
+
+  const endLine = () => {
+    lines.push({ width: lineWidth, runs });
+    runs = [];
+    lineWidth = 0;
+    cursor = 0;
+    pendingSpace = 0;
+    pendingText = [];
     breakable = false;
   };
 
@@ -387,7 +464,9 @@ function layoutLines(items, available) {
         endLine();
       }
       lineWidth += pendingSpace + item.width;
-      pendingSpace = 0;
+      flushPending();
+      runs.push({ type: 'box', item, x: cursor });
+      cursor += item.width;
       breakable = true;
       continue;
     }
@@ -396,7 +475,8 @@ function layoutLines(items, available) {
       // No wrapping: measure the whole run at once so kerning is preserved.
       const runWidth = advance(item.text, item.font);
       lineWidth += pendingSpace + runWidth;
-      pendingSpace = 0;
+      flushPending();
+      addText(item.text, item, runWidth);
       breakable = true; // a break may still be taken between runs
       if (item.nowrap) {
         // The entire run is unbreakable, so it sets the min-content width.
@@ -412,7 +492,10 @@ function layoutLines(items, available) {
     for (const chunk of tokenize(item.text)) {
       const width = advance(chunk.text, item.font);
       if (chunk.isSpace) {
-        if (lineWidth > 0) pendingSpace += width;
+        if (lineWidth > 0) {
+          pendingSpace += width;
+          pendingText.push({ text: chunk.text, item, width });
+        }
         breakable = true;
         continue;
       }
@@ -420,17 +503,19 @@ function layoutLines(items, available) {
       if (breakable && lineWidth > 0 && lineWidth + pendingSpace + width > available) {
         endLine();
         lineWidth = width;
+        addText(chunk.text, item, width);
         breakable = chunk.breakAfter;
         continue;
       }
       lineWidth += pendingSpace + width;
-      pendingSpace = 0;
+      flushPending();
+      addText(chunk.text, item, width);
       breakable = chunk.breakAfter;
     }
   }
 
   endLine();
-  return { widths, minContent };
+  return { lines, minContent };
 }
 
 /** The line-height that applies to a block's line boxes. */
@@ -440,14 +525,21 @@ function lineHeightFor(el, items) {
 }
 
 /**
- * Measure an HTML element the way Chrome would report getBoundingClientRect().
- * Only width and height are meaningful: we do not lay HTML out on a page, so
- * the origin is always (0, 0). Mermaid only ever reads width/height here.
+ * Lay out an HTML element and return both the box Chrome would report and the
+ * line boxes that produced it.
+ *
+ * `blocks` is one entry per block-level box, each with the line-height that
+ * applies to its line boxes, the font that sets their strut, and one entry per
+ * line carrying its advance width and its runs. Measurement only needs the
+ * width and height; flatten.js needs the rest to re-emit the label as <text>.
+ *
+ * @returns {{width: number, height: number, blocks: Array}|null} null when no
+ *          font registry is available, which is the only way measurement fails.
  */
-export function htmlBoundingRect(el) {
+export function htmlLayout(el) {
   const document = el.ownerDocument;
   const registry = document?.[FONT_REGISTRY] ?? null;
-  if (!registry) return { x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 };
+  if (!registry) return null;
 
   const fontSize = fontFor(el, registry).fontSize;
   const whiteSpace = inherited(el, 'white-space') || 'normal';
@@ -469,19 +561,28 @@ export function htmlBoundingRect(el) {
     else if (Number.isFinite(maxWidth)) available = maxWidth;
   }
 
-  const blocks = collectBlocks(el, registry);
+  const blocks = [];
   let width = 0;
   let height = 0;
   let minContent = 0;
 
-  for (const items of blocks) {
-    const { widths, minContent: blockMin } = layoutLines(items, available);
+  for (const items of collectBlocks(el, registry)) {
+    const { lines, minContent: blockMin } = layoutLines(items, available);
     minContent = Math.max(minContent, blockMin);
     const lineHeight = lineHeightFor(el, items);
     // A replaced element taller than the line box raises it.
     const tallest = items.reduce((max, i) => (i.type === 'box' ? Math.max(max, i.height) : max), 0);
-    for (const w of widths) width = Math.max(width, w);
-    height += widths.length * Math.max(lineHeight, tallest);
+    for (const line of lines) width = Math.max(width, line.width);
+    height += lines.length * Math.max(lineHeight, tallest);
+    blocks.push({
+      lines,
+      // The strut's own line-height, and the height each line actually advances
+      // by once a replaced box taller than the strut has raised it. Measurement
+      // only ever needed the second; placing a baseline needs both.
+      lineHeight,
+      boxHeight: Math.max(lineHeight, tallest),
+      font: items.find((i) => i.type === 'text')?.font ?? null,
+    });
   }
 
   if (Number.isFinite(explicitWidth)) width = explicitWidth;
@@ -497,6 +598,18 @@ export function htmlBoundingRect(el) {
   // rather than widening it.
   if (!nowrap && flow === null) width = Math.max(width, minContent);
 
+  return { width, height, blocks };
+}
+
+/**
+ * Measure an HTML element the way Chrome would report getBoundingClientRect().
+ * Only width and height are meaningful: we do not lay HTML out on a page, so
+ * the origin is always (0, 0). Mermaid only ever reads width/height here.
+ */
+export function htmlBoundingRect(el) {
+  const layout = htmlLayout(el);
+  const width = layout?.width ?? 0;
+  const height = layout?.height ?? 0;
   return {
     x: 0, y: 0, left: 0, top: 0,
     width, height,

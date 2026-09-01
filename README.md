@@ -98,15 +98,15 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 
 ## Limitations
 
-- **`<foreignObject>` portability.** HTML labels are the default, as in mermaid.
-  librsvg and resvg do not support `foreignObject` and Inkscape only partly does,
-  so if you feed the SVG to a non-browser rasterizer, render with
-  `htmlLabels: false` and accept that raw HTML, HTML entities and `fa:` icons
-  then show as literal text.
-- **Fonts must be available locally.** Text is measured from real font files, so
-  a family that is not registered falls back to a bundled one and measures
-  differently from a machine that has it installed. Open Sans and Noto Sans ship
-  with the package.
+- **Fonts must be available locally — twice, if you rasterize.** Text is measured
+  from real font files, so a family that is not registered falls back to a
+  bundled one and measures differently from a machine that has it installed.
+  Open Sans and Noto Sans ship with the package. That covers measurement only:
+  nothing is embedded in the SVG, so with `flattenLabels` the emitted
+  `font-family` has to be resolvable by whatever draws the file too. A resvg or
+  librsvg pipeline needs the family installed system-wide, or it substitutes one
+  with different metrics and the glyphs no longer fill the boxes they were
+  measured into.
 - **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; we do
   not implement it, so those labels measure as raw TeX source and the diagram is
   sized wrongly.
@@ -120,7 +120,7 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
   registered; mermaid-cli bundles it and we do not, so those two samples are
   ours to fix.
 
-  Of the 228 sample diagrams, 223 render. The other 5 are those 2 `zenuml` and
+  Of the 226 sample diagrams, 221 render. The other 5 are those 2 `zenuml` and
   3 that mermaid-cli rejects too, as invalid syntax. Refresh with `npm run fetch:samples`.
 
 ## Dependencies
@@ -260,7 +260,29 @@ That matters for **portability**: `<foreignObject>` is not supported by librsvg
 or resvg and only partly by Inkscape, so HTML labels render correctly in a
 browser but can lose every label in a non-browser rasterizer pipeline. The
 `<text>` path renders anywhere, at the cost of showing raw HTML, HTML entities
-and `fa:` icons as literal text.
+and `fa:` icons as literal text — and because mermaid measures that label
+differently, the whole diagram is laid out differently too.
+
+`flattenLabels: true` is the better answer for a rasterizer pipeline:
+
+```js
+const svg = await render(def, { flattenLabels: true });   // or --flatten-labels
+```
+
+It renders with HTML labels as usual, then rewrites them as SVG `<text>` from
+the line boxes the measurement already produced. Nothing is re-measured, so the
+diagram keeps exactly the geometry it was laid out with — across the sample
+corpus every deterministic diagram is byte-identical outside the labels — and
+markdown emphasis, entities and raw HTML survive as real styled text rather than
+as literal characters. Each line becomes one `<tspan>` anchored on its own
+baseline, `<b>`/`<i>` become nested `<tspan>`s, an `<img>` becomes an `<image>`
+placed from its offset along the line and its CSS `vertical-align`, and the HTML
+background behind an edge label becomes a `<rect>`.
+
+A label is left as `<foreignObject>` in two cases: it holds a box with no SVG
+equivalent at all (`<canvas>`, `<video>`, `<iframe>`), or it holds an image whose
+size never resolved — emitting nothing for it would silently drop the label,
+where leaving the HTML at least still renders in a browser.
 
 Images in labels are sized from `data:` URIs and local files. Pass
 `allowRemoteImages: true` to fetch `http(s)` sources — off by default so
