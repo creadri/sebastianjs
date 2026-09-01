@@ -6,6 +6,47 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.2.1] - 2026-09-01
+
+### Fixed
+- **mindmap and architecture required the optional native `canvas` module.**
+  Both lay out through cytoscape, which builds a `CanvasRenderer` during
+  construction; jsdom implements `getContext()` only when that native peer is
+  installed, and cytoscape treats a null context as fatal
+  (`Could not create canvas of type 2d`). The mindmap fix in 0.2.0 therefore
+  shipped resting on a dependency this package deliberately dropped in 0.1.0
+  along with the cairo/pango toolchain -- invisible locally, because jsdom
+  declares `canvas` as an optional peer and npm had installed it.
+
+  jsdom's `getContext` is now replaced unconditionally with a stub covering the
+  four members cytoscape actually touches: `getContext('2d')`,
+  `backingStorePixelRatio`, setting `font`, and `measureText`. Nothing is ever
+  painted -- mermaid uses cytoscape purely as a layout engine, removing the
+  container before the layout runs and reading node positions back out
+  afterwards. Output is now identical whether or not `canvas` is installed, and
+  "no native build step" holds for every diagram type.
+
+  `measureText` answers from the same fontkit metrics as the rest of the
+  geometry engine rather than returning 0.
+
+### Changed
+- **The package is 74% smaller: 50.8 MB unpacked to 13.2 MB** (6.6 MB packed).
+  `fonts/` carried every width variant Google Fonts ships -- 78 files, 35.9 MB
+  of `*_Condensed`, `*_SemiCondensed` and `*_ExtraCondensed` faces.
+
+  They were unreachable, not merely unused. Each registers as its own family
+  (`open sans condensed`, `noto sans extra condensed`, ...), mermaid never
+  names one, and `resolve()` falls back to the default family rather than to a
+  narrower width. The registry now holds exactly `open sans` (12 faces) and
+  `noto sans` (18), and the corpus renders identically -- 223 of 228, node
+  deviation unchanged at 0.016px.
+
+  The one visible edge: a caller who explicitly asked for
+  `fontFamily: 'Open Sans Condensed'` now falls back to Open Sans. Register the
+  face yourself with `FontRegistry#registerFont` if you need it.
+
+---
+
 ## [0.2.0] - 2026-09-01
 
 Two diagram types went from unusable to matching Chrome. Both were browser
