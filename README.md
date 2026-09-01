@@ -35,6 +35,12 @@ sebastianjs input.mmd -o output.svg -t dark \
   --theme-vars '{"primaryColor":"#3366ff"}' \
   --theme-css '.node rect{rx:4;ry:4}'
 
+# Render for a non-browser rasterizer or viewer (Okular, resvg, librsvg)
+sebastianjs input.mmd -o output.svg -p
+
+# PNG. An output path ending in .png is rasterized.
+sebastianjs input.mmd -o output.png --scale 2 --background white
+
 # Set the viewport the diagram is laid out on. Like mermaid-cli's -w/-H these
 # are layout hints; the emitted SVG still sizes itself from its own bounding box.
 sebastianjs input.mmd -o out.svg -W 1200 -H 700
@@ -60,6 +66,34 @@ const svg = await render(def, {
 
 // svg is a <svg …> string
 ```
+
+## PNG
+
+```js
+import { renderPng } from 'sebastianjs';
+
+const { data, width, height } = await renderPng(def, { scale: 2, background: 'white' });
+```
+
+Rasterizing is the one thing this package cannot do from its own geometry, so it
+is delegated to [resvg](https://github.com/linebender/resvg) — as WebAssembly
+rather than a native binding, so there is still no build step and no
+per-platform binaries. It is a plain dependency — 2.5 MB against the 84 MB
+mermaid itself unpacks to — so PNG works with no second install. It is loaded
+lazily, so rendering only SVG never instantiates it.
+
+What is not delegated is which fonts it draws with. Every run was measured
+against a specific file in the font registry, and those exact files are handed to
+the rasterizer with system fonts switched off — so the raster is drawn from the
+faces the layout was computed from, on every machine. mermaid-cli renders through
+Chrome's font stack and gets whatever the machine happens to have.
+
+Labels are flattened by default here, since resvg does not implement
+`foreignObject` and would draw a diagram of empty boxes. `textAsPaths: true`
+removes the font question entirely, at the cost of a larger intermediate SVG.
+
+The whole 226-sample corpus rasterizes in 52s, about 235ms a diagram including
+layout.
 
 ## Demos
 
@@ -94,7 +128,9 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 - [ ] Font Awesome support
 - [ ] Katex support
-- [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
+- [x] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
+      (PNG ships; GIF and JPEG do not, and are not planned — they need separate
+      encoders for formats nobody wants for a line diagram)
 
 ## Limitations
 
@@ -102,11 +138,11 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
   from real font files, so a family that is not registered falls back to a
   bundled one and measures differently from a machine that has it installed.
   Open Sans and Noto Sans ship with the package. That covers measurement only:
-  nothing is embedded in the SVG, so with `flattenLabels` the emitted
-  `font-family` has to be resolvable by whatever draws the file too. A resvg or
-  librsvg pipeline needs the family installed system-wide, or it substitutes one
-  with different metrics and the glyphs no longer fill the boxes they were
-  measured into.
+  nothing is embedded in the SVG, so the emitted `font-family` has to be
+  resolvable by whatever draws the file too, or it substitutes one with different
+  metrics and the glyphs no longer fill the boxes they were measured into.
+  `textAsPaths: true` removes that second requirement, and `renderPng` hands the
+  rasterizer the measured files directly.
 - **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; we do
   not implement it, so those labels measure as raw TeX source and the diagram is
   sized wrongly.
@@ -128,6 +164,12 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 No native build step and no headless browser. Text is measured with
 [fontkit](https://github.com/foliojs/fontkit) and geometry with a vendored copy
 of [svgdom](https://github.com/svgdotjs/svgdom)'s maths, both pure JavaScript.
+
+PNG output adds [@resvg/resvg-wasm](https://github.com/thx/resvg-js) —
+WebAssembly, so still no build step and no per-platform binaries. It has no
+dependencies and no install scripts of its own. It is MPL-2.0 where the rest of
+this package is MIT; as an unmodified dependency that puts no condition on your
+code, but a bundle that redistributes it carries the notice.
 
 ### Mermaid is pinned, deliberately
 
@@ -283,6 +325,65 @@ A label is left as `<foreignObject>` in two cases: it holds a box with no SVG
 equivalent at all (`<canvas>`, `<video>`, `<iframe>`), or it holds an image whose
 size never resolved — emitting nothing for it would silently drop the label,
 where leaving the HTML at least still renders in a browser.
+
+### Rendering outside a browser
+
+`foreignObject` is not the only thing a simple renderer cannot do. Mermaid keeps
+essentially all of its paint in the `<style>` block and addresses it by class — a
+node is emitted as `<rect class="basic label-container">` with no fill and no
+stroke of its own — and its arrowheads are `<marker>` references. Renderers built
+on SVG Tiny (QtSvg, and so Okular) implement neither, so they fall back to the
+SVG initial values and draw the whole diagram as black boxes with no strokes and
+no arrows.
+
+`portable: true` turns on all three passes that fix this:
+
+```js
+const svg = await render(def, { portable: true });   // or -p / --portable
+```
+
+| pass | what it resolves |
+| --- | --- |
+| `flattenLabels` | `<foreignObject>` labels become `<text>` |
+| `inlineStyles` | the stylesheet becomes SVG presentation attributes |
+| `bakeMarkers` | `marker-end` references become drawn geometry |
+
+Each is settable on its own, and setting one alongside `portable` overrides it.
+
+**The passes only ever add.** The `<style>` block stays exactly as it was, and so
+do the `marker-*` attributes — CSS beats a presentation attribute, and a renderer
+that implements markers paints the definition over the baked copy in the same
+place. So nothing that renders correctly today can regress; renderers that were
+drawing nothing now have something to draw. Across the sample corpus, every
+diagram rendered with `portable` has a fill or a stroke on every shape *with the
+stylesheet deleted*, and node placement is byte-identical to a plain render.
+
+The cost is time and size: over the 226-sample corpus, plain is 49.0s / 3.4 MB,
+and all three passes together are 65.7s / 3.6 MB plus the baked arrowheads.
+
+`marker-mid` is not baked — it needs a position per intermediate vertex rather
+than per endpoint, and no mermaid diagram emits one.
+
+### Text without a font
+
+`portable` still leaves one thing for the renderer to find: the font.
+`<text font-family="Open Sans">` only draws if Open Sans is installed, and nothing
+is embedded in the SVG, so a rasterizer without it substitutes a face with
+different metrics and the glyphs stop fitting the boxes they were measured into.
+
+```js
+const svg = await render(def, { textAsPaths: true });   // or --text-as-paths
+```
+
+Every run becomes a `<path>` drawn from the very font file fontkit measured it
+with, so the file renders identically anywhere and needs no font at all. It
+covers the text mermaid draws itself, not only flattened labels — across the
+sample corpus not one `<text>` element is left. It implies `inlineStyles`,
+because a rule like `.label text { fill: #333 }` selects on the element name and
+stops matching the moment its `<text>` becomes a `<g>`.
+
+This is the tier above `portable` rather than part of it, because it costs: the
+corpus grows 5.4x, and the text can no longer be selected or searched.
 
 Images in labels are sized from `data:` URIs and local files. Pass
 `allowRemoteImages: true` to fetch `http(s)` sources — off by default so

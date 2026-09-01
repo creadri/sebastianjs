@@ -11,8 +11,33 @@
 // elements inside <svg>. So we parse the rule text ourselves and match with
 // Element.matches(), which jsdom does support for complex selectors.
 
-/** Only these affect measurement; everything else is ignored. */
-const TRACKED = new Set([
+/**
+ * SVG presentation attributes — every CSS property that can equivalently be
+ * written as an attribute on an SVG element. This is the set inline.js is
+ * allowed to write, so it is also the set worth keeping when a stylesheet is
+ * parsed: a property outside it can never be inlined, whoever declares it.
+ *
+ * Deliberately excluded: `display`, because mermaid only ever sets it to the
+ * HTML values (`flex`, `inline-block`) on label content, where an SVG renderer
+ * would either ignore it or, worse, read an unknown value as `none`.
+ */
+export const PRESENTATION = new Set([
+  'alignment-baseline', 'baseline-shift', 'clip-path', 'clip-rule', 'color',
+  'color-interpolation', 'color-interpolation-filters', 'cursor', 'direction',
+  'dominant-baseline', 'fill', 'fill-opacity', 'fill-rule', 'filter',
+  'flood-color', 'flood-opacity', 'font-family', 'font-size', 'font-size-adjust',
+  'font-stretch', 'font-style', 'font-variant', 'font-weight', 'image-rendering',
+  'letter-spacing', 'lighting-color', 'marker-end', 'marker-mid', 'marker-start',
+  'mask', 'opacity', 'overflow', 'paint-order', 'pointer-events',
+  'shape-rendering', 'stop-color', 'stop-opacity', 'stroke', 'stroke-dasharray',
+  'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
+  'stroke-opacity', 'stroke-width', 'text-anchor', 'text-decoration',
+  'text-rendering', 'unicode-bidi', 'vector-effect', 'visibility', 'word-spacing',
+  'writing-mode',
+]);
+
+/** These affect measurement; the rest of TRACKED is there to be inlined. */
+const MEASURED = new Set([
   // text metrics (SVG and HTML)
   'font-size',
   'font-family',
@@ -49,6 +74,7 @@ const TRACKED = new Set([
   'vertical-align',
 ]);
 
+
 const RULES = Symbol.for('sebastianjs.cssRules');
 
 /** Strip comments, then walk top level tracking brace depth so at-rules are skipped. */
@@ -76,12 +102,13 @@ function parseStylesheet(cssText, rules) {
       // Conditional groups still contain style rules; keyframes do not apply to us.
       if (/^@(media|supports|layer)\b/i.test(prelude)) parseStylesheet(body, rules);
     } else if (prelude) {
-      const declarations = parseDeclarations(body);
-      if (declarations.size) {
+      const { measured, presentation } = parseDeclarations(body);
+      if (measured.size || presentation.size) {
         for (const selector of splitSelectors(prelude)) {
           rules.push({
             selector,
-            declarations,
+            measured,
+            presentation,
             specificity: specificityOf(selector),
             order: rules.length,
           });
@@ -111,22 +138,37 @@ function splitSelectors(prelude) {
   return out.filter(Boolean);
 }
 
+/**
+ * Declarations split into the two audiences that read them.
+ *
+ * They are kept apart rather than filtered on lookup because measurement calls
+ * cssStyleFor once per property per element, and every call walks the winning
+ * rules' declarations. Handing that loop the presentation properties as well —
+ * which measurement can never read — cost 55% on a full corpus render.
+ */
 function parseDeclarations(body) {
-  const out = new Map();
+  const measured = new Map();
+  const presentation = new Map();
+
   for (const chunk of body.split(';')) {
     const colon = chunk.indexOf(':');
     if (colon === -1) continue;
     const property = chunk.slice(0, colon).trim().toLowerCase();
-    if (!TRACKED.has(property)) continue;
+    const wanted = MEASURED.has(property);
+    const paints = PRESENTATION.has(property);
+    if (!wanted && !paints) continue;
+
     let value = chunk.slice(colon + 1).trim();
     let important = false;
     if (/!\s*important$/i.test(value)) {
       important = true;
       value = value.replace(/!\s*important$/i, '').trim();
     }
-    if (value) out.set(property, { value, important });
+    if (!value) continue;
+    if (wanted) measured.set(property, { value, important });
+    if (paints) presentation.set(property, { value, important });
   }
-  return out;
+  return { measured, presentation };
 }
 
 /** (ids, classes/attrs/pseudo-classes, elements/pseudo-elements) packed into one number. */
@@ -187,6 +229,18 @@ export function getRules(document) {
  * Map<property, { value, important }>, already resolved by specificity.
  */
 export function cssStyleFor(element) {
+  return resolve(element, 'measured');
+}
+
+/**
+ * The same, over the properties that can be written as SVG presentation
+ * attributes. Only inline.js reads these.
+ */
+export function cssPresentationFor(element) {
+  return resolve(element, 'presentation');
+}
+
+function resolve(element, kind) {
   const document = element.ownerDocument;
   if (!document) return null;
   const rules = getRules(document);
@@ -194,6 +248,11 @@ export function cssStyleFor(element) {
 
   let winners = null;
   for (const rule of rules) {
+    const declarations = rule[kind];
+    // Matching is the expensive half, so a rule with nothing this caller can
+    // use is dropped before the selector is ever tested.
+    if (!declarations.size) continue;
+
     let matched = false;
     try {
       matched = element.matches(rule.selector);
@@ -203,7 +262,7 @@ export function cssStyleFor(element) {
     if (!matched) continue;
 
     winners ??= new Map();
-    for (const [property, declaration] of rule.declarations) {
+    for (const [property, declaration] of declarations) {
       const previous = winners.get(property);
       if (
         !previous ||

@@ -3,6 +3,9 @@ import { createDefaultRegistry } from './geometry/fonts.js';
 import { FONT_REGISTRY } from './geometry/bbox.js';
 import { IMAGE_OPTIONS } from './geometry/images.js';
 import { flattenForeignObjects } from './geometry/flatten.js';
+import { inlineStyles as inlineCascade } from './geometry/inline.js';
+import { bakeMarkers as bakeMarkersInto } from './geometry/markers.js';
+import { outlineText as outlineTextIn } from './geometry/outline.js';
 
 // mermaid (and the d3 and DOMPurify instances inside it) is a module singleton
 // that binds to whichever window exists when it is first imported. Building a
@@ -54,22 +57,42 @@ function numericEntities(svg, document) {
 }
 
 /**
- * Rewrite the HTML labels in a finished diagram as SVG <text>.
+ * Run the portability passes over a finished diagram.
  *
  * mermaid removes its element from the document before render() returns, so the
  * markup is parsed back in to do this. That is not a workaround but the point:
  * the emitted SVG carries the diagram's own <style>, so re-attaching it puts
- * the labels back under exactly the cascade that measured them.
+ * every element back under exactly the cascade that laid it out.
+ *
+ * Order matters. Labels are flattened first so the cascade has <text> to write
+ * to rather than HTML, and markers are baked last so the copies they leave
+ * behind already carry their resolved paint.
  */
-async function flattenLabelsIn(svg, document) {
+async function postProcess(svg, document, passes) {
+  if (!passes.flattenLabels && !passes.inlineStyles && !passes.bakeMarkers && !passes.textAsPaths) {
+    return svg;
+  }
+
   const holder = document.createElement('div');
   document.body.appendChild(holder);
   try {
     holder.innerHTML = svg;
     const root = holder.firstElementChild;
     if (!root) return svg;
-    await settleImages(holder);
-    flattenForeignObjects(root);
+
+    if (passes.flattenLabels) {
+      await settleImages(holder);
+      flattenForeignObjects(root);
+    }
+    // Outlining needs the cascade resolved first, so it forces the pass: a rule
+    // like `.label text { fill: #333 }` selects on the element name and stops
+    // matching the moment its <text> becomes a <g>.
+    if (passes.inlineStyles || passes.textAsPaths) inlineCascade(root);
+    if (passes.textAsPaths) outlineTextIn(root);
+    // After inlining, so a marker's content is copied out carrying the paint it
+    // used to inherit from the <marker> element.
+    if (passes.bakeMarkers) bakeMarkersInto(root);
+
     return holder.innerHTML;
   } finally {
     holder.remove();
@@ -138,6 +161,11 @@ export async function dispose() {
  *                                   non-browser SVG consumers (librsvg, resvg,
  *                                   Inkscape) can actually render — at the cost
  *                                   of showing raw HTML and entities literally.
+ * @param {boolean} [options.portable]     turn on every pass that makes the
+ *                                   output render outside a browser:
+ *                                   flattenLabels, inlineStyles and bakeMarkers.
+ *                                   Each can still be set on its own to override
+ *                                   one of them.
  * @param {boolean} [options.flattenLabels] rewrite the <foreignObject> HTML
  *                                   labels as SVG <text> after rendering, so the
  *                                   output renders in librsvg, resvg and
@@ -147,6 +175,29 @@ export async function dispose() {
  *                                   raw HTML survive as styled text. Labels
  *                                   holding an <img> or an icon-pack <svg> are
  *                                   left as <foreignObject>.
+ * @param {boolean} [options.inlineStyles] write the diagram's stylesheet onto
+ *                                   the elements it applies to, as SVG
+ *                                   presentation attributes. mermaid keeps
+ *                                   nearly all of its paint in a <style> block
+ *                                   addressed by class, which SVG Tiny
+ *                                   renderers (QtSvg, and so Okular) do not
+ *                                   implement — they draw the whole diagram as
+ *                                   black boxes. Purely additive: the <style>
+ *                                   block stays, and CSS still wins wherever it
+ *                                   is understood.
+ * @param {boolean} [options.bakeMarkers] draw each `marker-end` arrowhead as
+ *                                   real geometry at the end of its edge. SVG
+ *                                   Tiny has no markers, so those renderers draw
+ *                                   edges with no heads. Purely additive: the
+ *                                   marker-* attributes stay, and a renderer
+ *                                   that implements them paints the definition
+ *                                   over the baked copy in the same place.
+ * @param {boolean} [options.textAsPaths] draw every text run as glyph outlines
+ *                                   from the font file it was measured with, so
+ *                                   the SVG needs no font to render. The tier
+ *                                   above `portable`, not part of it: it costs
+ *                                   file size and the text can no longer be
+ *                                   selected or searched. Implies inlineStyles.
  * @param {boolean} [options.allowRemoteImages] fetch http(s) <img> sources to
  *                                   measure them. Off by default: rendering
  *                                   should not perform network I/O unasked.
@@ -176,7 +227,12 @@ async function renderOne(definition, options) {
     fontFamily = 'Open Sans',
     fontRegistry,
     htmlLabels = true,
-    flattenLabels = false,
+    // Each pass stays individually settable; `portable` just turns the set on.
+    portable = false,
+    flattenLabels = portable,
+    inlineStyles = portable,
+    bakeMarkers = portable,
+    textAsPaths = false,
     allowRemoteImages = false,
     imageTimeoutMs,
     iconPacks,
@@ -224,8 +280,10 @@ async function renderOne(definition, options) {
       // second render in the same process collides with the first.
       const id = `sebastianjs-${++renderCounter}`;
       const { svg } = await mermaid.render(id, definition, container);
-      const flat = flattenLabels ? await flattenLabelsIn(svg, document) : svg;
-      return numericEntities(selfCloseVoidElements(flat), document);
+      const processed = await postProcess(svg, document, {
+        flattenLabels, inlineStyles, bakeMarkers, textAsPaths,
+      });
+      return numericEntities(selfCloseVoidElements(processed), document);
     });
   } finally {
     container.remove();
@@ -234,9 +292,17 @@ async function renderOne(definition, options) {
 }
 
 let defaultRegistryInstance = null;
+
+/** The registry a render uses when the caller passes none. Read by png.js. */
+export async function defaultFontRegistry() {
+  return defaultRegistry();
+}
+
 async function defaultRegistry() {
   defaultRegistryInstance ??= (await sharedDOM()).fontRegistry ?? createDefaultRegistry();
   return defaultRegistryInstance;
 }
+
+export { renderPng } from './png.js';
 
 export default { render, dispose };

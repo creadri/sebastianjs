@@ -47,6 +47,18 @@ function baselineOffset(font, fontSize, ascent, dominantBaseline) {
 }
 
 /**
+ * The alphabetic baseline for a run whose `dominant-baseline` anchor sits at y.
+ *
+ * SVG puts the *named* baseline at the given y, while a glyph outline is drawn
+ * from the alphabetic one, so the two differ by whatever the table above says.
+ * Only outline.js needs this: measurement never draws, so it works from the box.
+ */
+export function alphabeticBaselineAt(y, font, fontSize, dominantBaseline) {
+  const { ascent } = blinkVerticalMetrics(font, fontSize);
+  return y + ascent - baselineOffset(font, fontSize, ascent, dominantBaseline);
+}
+
+/**
  * Bounding box of a text run whose baseline starts at (x, y).
  * `details` carries the resolved CSS: fontFamily, fontSize, fontWeight,
  * fontStyle, letterSpacing, textAnchor, dominantBaseline.

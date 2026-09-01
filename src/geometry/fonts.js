@@ -135,6 +135,21 @@ export class FontRegistry {
     return this;
   }
 
+  /**
+   * Every registered face's file path.
+   *
+   * A rasterizer has to be handed the same faces the diagram was measured
+   * against, or it substitutes one with different metrics and the glyphs stop
+   * fitting the boxes they were laid out into. This is what png.js feeds it.
+   */
+  fontFiles() {
+    const files = new Set();
+    for (const faces of this.families.values()) {
+      for (const face of faces) files.add(face.file);
+    }
+    return [...files];
+  }
+
   setDefaultFamily(family) {
     const key = normalize(family);
     if (!this.families.has(key)) {

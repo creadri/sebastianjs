@@ -43,6 +43,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
     "dompurify": "^3.2.6",
     "fontkit": "^2.0.4",
     "image-size": "^2.0.2",

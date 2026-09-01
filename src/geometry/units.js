@@ -11,7 +11,12 @@
  */
 export function resolveLength(value, fontSize) {
   if (value == null || value === '') return NaN;
-  const match = String(value).trim().match(/^(-?[\d.]+)\s*(px|em|rem|ex|pt|pc|in|cm|mm|%)?$/);
+  // The exponent form is valid SVG and mermaid emits it: a radar axis label sits
+  // at x="1.7451216887849784e-14". Without it this returned NaN, and every
+  // caller read that as "no value stated".
+  const match = String(value)
+    .trim()
+    .match(/^(-?[\d.]+(?:[eE][-+]?\d+)?)\s*(px|em|rem|ex|pt|pc|in|cm|mm|%)?$/);
   if (!match) return NaN;
   const n = parseFloat(match[1]);
   if (!Number.isFinite(n)) return NaN;

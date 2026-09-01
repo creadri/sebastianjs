@@ -5,11 +5,11 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { stdin as input } from 'node:process';
-import { render } from '../src/index.js';
+import { render, renderPng } from '../src/index.js';
 
 
 function parseArgs(argv) {
-  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, width: 800, height: 600, flattenLabels: false };
+  const args = { input: null, output: null, theme: null, themeCSS: null, themeVariables: null, width: 800, height: 600, flattenLabels: false, inlineStyles: false, bakeMarkers: false, portable: false, textAsPaths: false, scale: 1, background: null };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -28,6 +28,18 @@ function parseArgs(argv) {
       args.height = Number(argv[++i]);
     } else if (a === '--flatten-labels') {
       args.flattenLabels = true;
+    } else if (a === '--inline-styles') {
+      args.inlineStyles = true;
+    } else if (a === '--bake-markers') {
+      args.bakeMarkers = true;
+    } else if (a === '-p' || a === '--portable') {
+      args.portable = true;
+    } else if (a === '--text-as-paths') {
+      args.textAsPaths = true;
+    } else if (a === '--scale') {
+      args.scale = Number(argv[++i]);
+    } else if (a === '--background') {
+      args.background = argv[++i];
     } else if (a === '-h' || a === '--help') {
       args.help = true;
     } else {
@@ -47,8 +59,16 @@ async function readStdin() {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [-W width] [-H height] [--flatten-labels]');
-    console.error('  --flatten-labels  rewrite HTML labels as SVG <text> so librsvg/resvg/Inkscape can render them');
+  console.error('Usage: sebastianjs [input.mmd|-] [-o output.svg] [-t theme] [--theme-css css] [--theme-vars json] [-W width] [-H height] [-p]');
+    console.error('  -p, --portable    render for non-browser SVG consumers: all three passes below');
+    console.error('  --flatten-labels  rewrite HTML labels as SVG <text> (no <foreignObject>)');
+    console.error('  --inline-styles   write the stylesheet onto elements as presentation attributes');
+    console.error('  --bake-markers    draw arrowheads as geometry instead of <marker> references');
+    console.error('  --text-as-paths   draw text as glyph outlines, so the file needs no font');
+    console.error('');
+    console.error('An output path ending in .png is rasterized (needs @resvg/resvg-wasm):');
+    console.error('  --scale n         zoom applied to the diagram size, default 1');
+    console.error('  --background c    colour painted behind the diagram, default transparent');
     process.exit(0);
   }
 
@@ -68,15 +88,31 @@ async function main() {
     process.exit(1);
   }
 
+  const options = {
+    theme: args.theme || undefined,
+    themeCSS: args.themeCSS || undefined,
+    themeVariables: args.themeVariables || undefined,
+    width: args.width,
+    height: args.height,
+    portable: args.portable,
+    ...(args.flattenLabels ? { flattenLabels: true } : {}),
+    ...(args.inlineStyles ? { inlineStyles: true } : {}),
+    ...(args.bakeMarkers ? { bakeMarkers: true } : {}),
+    ...(args.textAsPaths ? { textAsPaths: true } : {}),
+  };
+
   try {
-    const svg = await render(def, {
-      theme: args.theme || undefined,
-      themeCSS: args.themeCSS || undefined,
-      themeVariables: args.themeVariables || undefined,
-      width: args.width,
-      height: args.height,
-      flattenLabels: args.flattenLabels,
-    });
+    // The extension picks the format; there is no other thing a .png could mean.
+    if (args.output && /\.png$/i.test(args.output)) {
+      const { data } = await renderPng(def, {
+        ...options,
+        scale: args.scale,
+        ...(args.background ? { background: args.background } : {}),
+      });
+      await writeFile(args.output, data);
+      return;
+    }
+    const svg = await render(def, options);
     if (args.output) {
       await writeFile(args.output, svg, 'utf8');
     } else {

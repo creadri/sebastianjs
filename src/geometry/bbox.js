@@ -162,7 +162,12 @@ const union = (boxes) => boxes.reduce((last, curr) => last.merge(curr), new NoBo
  * Returns the collapsed contribution of every text node under `root`, keyed by
  * node: collapsing spans runs, so a node cannot be processed on its own.
  */
-const collapseWhitespace = (root) => {
+/**
+ * SVG collapses runs of whitespace across a text element's runs, and drops it
+ * at the start. Exported for outline.js, which has to place glyphs at exactly
+ * the positions this collapsing implies.
+ */
+export const collapseWhitespace = (root) => {
   const runs = [];
   const collect = (node) => {
     for (const child of node.childNodes) {
