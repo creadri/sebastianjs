@@ -92,7 +92,8 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [x] Fix positioning and sizing issues
 - [x] Release First viable option
 - [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
-- [ ] Font Awesome integration
+- [ ] Font Awesome support
+- [ ] Katex support
 - [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 
 ## Limitations
