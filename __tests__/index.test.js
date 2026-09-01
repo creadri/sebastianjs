@@ -47,6 +47,17 @@ describe('SebastianJS', () => {
     expect(svg).toContain('First');
     expect(svg).toContain('Second');
   });
+
+  it('renders a mindmap, whose layout runs through cytoscape', async () => {
+    // cytoscape sizes its layout container as
+    // `clientWidth - parseFloat(computed padding-left) - ...`, and jsdom leaves
+    // computed padding empty. The NaN that produced made the layout's bounding
+    // box undefined and threw before a single node was placed, so every mindmap
+    // failed outright rather than rendering badly.
+    const svg = await render('mindmap\n  root\n    child1\n    child2\n');
+    expect(svg).toContain('aria-roledescription="mindmap"');
+    expect(svg.match(/class="mindmap-node/g)).toHaveLength(4); // root + 2 + the group
+  });
 });
 
 function viewBoxOf(svg) {

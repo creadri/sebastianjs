@@ -41,6 +41,8 @@ export function installGeometry(window, { fontRegistry, imageOptions, viewport }
   // event that jsdom never fires. See images.js.
   installImageLoading(window);
 
+  installComputedInitialValues(window);
+
   if (window.SVGElement.prototype.getBBox) return registry;
 
   const proto = window.SVGElement.prototype;
@@ -196,3 +198,51 @@ export function installGeometry(window, { fontRegistry, imageOptions, viewport }
   return registry;
 }
 
+// Box-model lengths whose CSS initial value is 0. A browser reports "0px" for
+// these on any element that does not set them; jsdom's getComputedStyle returns
+// "" for every property outside its small UA stylesheet.
+const ZERO_LENGTH_INITIAL =
+  /^(?:(?:padding|margin)-(?:top|right|bottom|left)|border-(?:top|right|bottom|left)-width)$/;
+
+// Only the instance is ever patched, so the prototype still holds jsdom's own
+// implementation to defer to.
+function computedPropertyValue(property) {
+  const value = Object.getPrototypeOf(this).getPropertyValue.call(this, property);
+  return value === '' && ZERO_LENGTH_INITIAL.test(property) ? '0px' : value;
+}
+
+/**
+ * Make getComputedStyle report the CSS initial value for the box-model lengths
+ * jsdom leaves empty.
+ *
+ * Consumers subtract these from a measured size, so "" is not a harmless blank:
+ * cytoscape sizes a mindmap's layout container with
+ * `clientWidth - parseFloat(padding-left) - parseFloat(padding-right)`, which
+ * became NaN, made the layout's bounding box come back undefined, and threw
+ * "Cannot read properties of undefined (reading 'h')" before a single mindmap
+ * node was placed.
+ *
+ * Only `getPropertyValue` on the object getComputedStyle returns is patched,
+ * which is what every consumer here calls. An inline `style` declaration must
+ * keep answering "" for a property it does not set — that is how a browser
+ * distinguishes a declared 0 from no declaration at all, and html.js reads it
+ * that way.
+ */
+function installComputedInitialValues(window) {
+  const native = window.getComputedStyle;
+  if (native.patched) return;
+
+  const patched = function getComputedStyle(...args) {
+    const style = native.apply(window, args);
+    if (style && style.getPropertyValue !== computedPropertyValue) {
+      Object.defineProperty(style, 'getPropertyValue', {
+        value: computedPropertyValue,
+        configurable: true,
+        writable: true,
+      });
+    }
+    return style;
+  };
+  patched.patched = true;
+  window.getComputedStyle = patched;
+}

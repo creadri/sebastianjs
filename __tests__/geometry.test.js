@@ -189,6 +189,36 @@ describe('page-flow layout', () => {
   });
 });
 
+describe('computed styles', () => {
+  test('box-model lengths report their CSS initial value, not ""', () => {
+    // cytoscape sizes a layout container with
+    // `clientWidth - parseFloat(padding-left) - parseFloat(padding-right)`.
+    // jsdom answers "" for anything outside its small UA stylesheet, so that
+    // arithmetic produced NaN, the layout bounding box came back undefined,
+    // and every mindmap threw before a node was placed.
+    const div = document.createElement('div');
+    div.setAttribute('style', 'display: none');
+    document.body.appendChild(div);
+    const style = document.defaultView.getComputedStyle(div);
+
+    expect(style.getPropertyValue('padding-left')).toBe('0px');
+    expect(style.getPropertyValue('border-top-width')).toBe('0px');
+    expect(div.clientWidth - parseFloat(style.getPropertyValue('padding-left'))).toBe(0);
+    // What jsdom does set still wins, and unrelated properties are untouched.
+    expect(style.getPropertyValue('display')).toBe('none');
+    expect(document.defaultView
+      .getComputedStyle(document.body)
+      .getPropertyValue('margin-left')).toBe('8px');
+  });
+
+  test('an inline declaration still reports "" for what it does not set', () => {
+    // html.js tells a declared 0 from no declaration at all this way.
+    const div = document.createElement('div');
+    div.setAttribute('style', 'display: none');
+    expect(div.style.getPropertyValue('padding-left')).toBe('');
+  });
+});
+
 describe('paths', () => {
   // Upstream svgdom returns rx as the vertical extent of a half-ellipse, which
   // made every mermaid cylinder node ~61px too tall. See the PATCHED note in
