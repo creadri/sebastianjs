@@ -2,8 +2,15 @@
 // Build the static comparison site under site/ (not committed).
 //
 // Both sides are rendered at build time, by the same pinned mermaid:
-//   left  -- SebastianJS, in process
+//   left  -- SebastianJS, in process, in three output forms
 //   right -- mermaid-cli, in headless Chrome
+//
+// The three forms come off the same layout, so the metrics apply to all of
+// them. They are shown one at a time in the same box rather than four panes
+// abreast: a difference between two renderings of the same diagram is far
+// easier to see when the picture stays put and changes under you than when
+// your eye has to travel between two of them. The switch is a radio group and
+// some CSS, because this site renders with JavaScript disabled.
 //
 // The site used to ship the mermaid *source* to the browser and let a CDN copy
 // of mermaid@10 draw it. That compared our mermaid 11.9.0 output against
@@ -17,13 +24,16 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { JSDOM } from 'jsdom';
-import { render, dispose } from '../src/index.js';
+import { render, renderPng, dispose } from '../src/index.js';
 import { spawnMmdc } from './mmdc-wrapper.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const SAMPLES_DIR = join(ROOT, 'samples');
-const OUT_DIR = join(ROOT, 'site');
+// Overridable so the site can be built from a handful of samples while working
+// on it. A full build renders every sample in headless Chrome, which is minutes
+// of waiting to look at a stylesheet change.
+const SAMPLES_DIR = process.env.SITE_SAMPLES || join(ROOT, 'samples');
+const OUT_DIR = process.env.SITE_OUT || join(ROOT, 'site');
 const ASSETS_DIR = join(OUT_DIR, 'assets');
 
 const PUPPETEER_ARGS = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
@@ -39,6 +49,35 @@ const MERMAID_CONFIG = {
   fontFamily: 'Open Sans',
   themeVariables: { fontFamily: 'Open Sans' },
 };
+
+/**
+ * The output forms of a single render, in the order the switch offers them.
+ * `render` is what produces each; the metrics never change between them,
+ * because the layout does not.
+ */
+const VARIANTS = [
+  {
+    key: 'svg',
+    label: 'SVG',
+    sub: 'HTML labels, as mermaid emits them',
+    suffix: 'sebastianjs.svg',
+    render: (def) => render(def, { width: 800, height: 600 }),
+  },
+  {
+    key: 'traced',
+    label: 'SVG, text traced',
+    sub: 'no foreignObject, no stylesheet, no font needed',
+    suffix: 'traced.svg',
+    render: (def) => render(def, { width: 800, height: 600, portable: true, textAsPaths: true }),
+  },
+  {
+    key: 'png',
+    label: 'PNG',
+    sub: 'rasterized at 2x by resvg, fonts from the registry',
+    suffix: '2x.png',
+    render: async (def) => (await renderPng(def, { width: 800, height: 600, scale: 2 })).data,
+  },
+];
 
 const pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
 const MERMAID_VERSION = pkg.dependencies.mermaid;
@@ -223,22 +262,70 @@ ${body}
 </html>`;
 }
 
-function svgPane({ label, sub, ok, src, error, widthPct }) {
-  if (!ok) {
-    return `<div class="pane pane-failed">
+function failedPane({ label, sub, error }) {
+  return `<div class="pane pane-failed">
         <div class="pane-head"><span class="pane-label">${esc(label)}</span><span class="pane-sub">${esc(sub)}</span></div>
         <div class="pane-body"><p class="failure"><strong>Did not render</strong><span>${esc(error || 'unknown error')}</span></p></div>
       </div>`;
-  }
-  // Both panes are the same width, so letting each image fill its pane would
-  // normalise away any size difference -- the two would look identical even
-  // when one is 30% wider. Scale both against the wider of the pair instead,
-  // so a width difference is visible rather than merely stated in the metrics.
-  const style = widthPct != null && widthPct < 99.5 ? ` style="width:${widthPct.toFixed(1)}%"` : '';
+}
+
+// Both panes are the same width, so letting each image fill its pane would
+// normalise away any size difference -- the two would look identical even when
+// one is 30% wider. Scale both against the wider of the pair instead, so a
+// width difference is visible rather than merely stated in the metrics.
+const widthStyle = (pct) => (pct != null && pct < 99.5 ? ` style="width:${pct.toFixed(1)}%"` : '');
+
+function svgPane({ label, sub, ok, src, error, widthPct }) {
+  if (!ok) return failedPane({ label, sub, error });
   return `<div class="pane">
         <div class="pane-head"><span class="pane-label">${esc(label)}</span><span class="pane-sub">${esc(sub)}</span></div>
-        <div class="pane-body"><img src="${esc(src)}" alt="${esc(label)} rendering" loading="lazy"${style}></div>
+        <div class="pane-body"><img src="${esc(src)}" alt="${esc(label)} rendering" loading="lazy"${widthStyle(widthPct)}></div>
       </div>`;
+}
+
+/**
+ * The SebastianJS pane, holding every output form at once. Only the one the
+ * page switch selects is displayed; the rest are `display:none`, which also
+ * keeps the browser from fetching them until they are asked for.
+ */
+function oursPane({ shots, widthPct }) {
+  if (!shots.some((shot) => shot.ok)) {
+    return failedPane({ label: 'SebastianJS', sub: 'no browser', error: shots[0]?.error });
+  }
+
+  const subs = shots
+    .map((shot) => `<span class="only only-${shot.key}">${esc(shot.sub)}</span>`)
+    .join('');
+
+  const bodies = shots
+    .map((shot) =>
+      shot.ok
+        ? `<img class="only only-${shot.key}" src="${esc(shot.src)}" alt="SebastianJS ${esc(shot.label)} rendering" loading="lazy"${widthStyle(widthPct)}>`
+        : `<p class="failure only only-${shot.key}"><strong>${esc(shot.label)} unavailable</strong><span>${esc(shot.error || 'unknown error')}</span></p>`
+    )
+    .join('');
+
+  return `<div class="pane">
+        <div class="pane-head"><span class="pane-label">SebastianJS</span><span class="pane-sub">${subs}</span></div>
+        <div class="pane-body">${bodies}</div>
+      </div>`;
+}
+
+/**
+ * The page-wide output-form switch. One radio group for the whole page rather
+ * than one per card: you decide once which form you are looking at, and every
+ * example follows.
+ */
+function variantSwitch() {
+  const options = VARIANTS.map(
+    (v, i) =>
+      `<input type="radio" name="variant" id="pick-${v.key}"${i === 0 ? ' checked' : ''}>` +
+      `<label for="pick-${v.key}">${esc(v.label)}</label>`
+  ).join('');
+  return `<div class="variant-switch" role="radiogroup" aria-label="SebastianJS output form">
+  <span class="variant-legend">SebastianJS pane shows</span>
+  ${options}
+</div>`;
 }
 
 function metricsLine({ deviation, comparedNodes, widthRel }) {
@@ -272,11 +359,23 @@ async function main() {
 
     const ours = new Map();
     for (const it of items) {
-      try {
-        ours.set(it.file, { ok: true, svg: await render(it.def, { width: 800, height: 600 }) });
-      } catch (e) {
-        ours.set(it.file, { ok: false, error: firstLine(e) });
+      const shots = [];
+      for (const variant of VARIANTS) {
+        try {
+          shots.push({ ...variant, ok: true, data: await variant.render(it.def) });
+        } catch (e) {
+          // One form failing is not the others failing: a missing rasterizer
+          // should cost the PNG tab, not the whole comparison.
+          shots.push({ ...variant, ok: false, error: firstLine(e) });
+        }
       }
+      const primary = shots[0];
+      ours.set(it.file, {
+        ok: primary.ok,
+        svg: primary.ok ? primary.data : null,
+        error: primary.error,
+        shots,
+      });
     }
 
     const theirs = await renderGroupWithMmdc(items, join(workRoot, group));
@@ -303,10 +402,11 @@ async function main() {
       const v = verdict({ ok: a.ok, theirOk: b.ok, ...metrics });
       counts[v.key] = (counts[v.key] || 0) + 1;
 
-      let oursSrc = '', theirsSrc = '';
-      if (a.ok) {
-        oursSrc = `assets/${group}-${n}-sebastianjs.svg`;
-        await writeFile(join(OUT_DIR, oursSrc), a.svg, 'utf8');
+      let theirsSrc = '';
+      for (const shot of a.shots || []) {
+        if (!shot.ok) continue;
+        shot.src = `assets/${group}-${n}-${shot.suffix}`;
+        await writeFile(join(OUT_DIR, shot.src), shot.data);
       }
       if (b.ok) {
         theirsSrc = `assets/${group}-${n}-mermaid-cli.svg`;
@@ -320,7 +420,7 @@ async function main() {
   </div>
   ${a.ok && b.ok ? metricsLine(metrics) : ''}
   <div class="compare">
-    ${svgPane({ label: 'SebastianJS', sub: 'no browser', ok: a.ok, src: oursSrc, error: a.error, widthPct: pctOf(wa) })}
+    ${oursPane({ shots: a.shots || [], widthPct: pctOf(wa) })}
     ${svgPane({ label: 'mermaid-cli', sub: 'headless Chrome', ok: b.ok, src: theirsSrc, error: b.error, widthPct: pctOf(wb) })}
   </div>
   <details class="source">
@@ -334,9 +434,10 @@ async function main() {
     const body = `<nav class="crumbs"><a href="index.html">Gallery</a> <span>/</span> <strong>${esc(group)}</strong></nav>
 <div class="page-head">
   <h1>${esc(group)}</h1>
-  <p class="lede">${items.length} sample${items.length === 1 ? '' : 's'} from the mermaid demo corpus, rendered both ways.</p>
+  <p class="lede">${items.length} sample${items.length === 1 ? '' : 's'} from the mermaid demo corpus, rendered both ways. The three SebastianJS forms come off one layout, so the measurements below hold for all of them.</p>
   <div class="jump">${nav}</div>
 </div>
+${variantSwitch()}
 ${cards.join('\n')}`;
 
     await writeFile(join(OUT_DIR, `${group}.html`), page({
@@ -381,6 +482,7 @@ ${cards.join('\n')}`;
     <div class="stat"><b>${totals.bothFailed}</b><span>invalid demos</span></div>
   </div>
   <p class="note">Both sides run mermaid ${esc(MERMAID_VERSION)}. The reference pane is real mermaid-cli output produced at build time, not a CDN copy of mermaid drawing in your browser — otherwise the comparison would measure a version difference rather than a rendering difference.</p>
+  <p class="note">Every example can be shown in any of the three forms SebastianJS emits — plain SVG, SVG with the text traced to outlines, or a PNG rasterized from it — using the switch at the top of each page. All three come off one layout, so switching between them changes the file, never the geometry.</p>
 </section>
 <section>
   <h2 class="section-title">Diagram types</h2>
@@ -500,10 +602,47 @@ main{max-width:1180px;margin:0 auto;padding:0 24px 72px}
   background:#fff;overflow:auto}
 .pane-body img{max-width:100%;height:auto;display:block}
 .pane-failed .pane-body{background:var(--fail-soft);background-image:none}
+
 .failure{display:flex;flex-direction:column;gap:6px;text-align:center;margin:0;padding:20px 8px;font-size:12.5px}
 .failure strong{color:var(--fail)}
 .failure span{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
   word-break:break-word;max-width:46ch}
+
+/* ---- output-form switch -------------------------------------------------
+   One radio group for the whole page, so a choice made once follows every
+   example down it. The radios themselves hold the state, which is why this
+   needs no script: :has() lets the page react to which one is checked. Where
+   :has() is missing nothing matches, the SVG stays visible, and the page is
+   exactly the page it was before this existed. */
+.variant-switch{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  margin:22px 0 4px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg);box-shadow:0 1px 0 var(--border)}
+.variant-legend{font-size:11.5px;color:var(--muted);margin-right:4px}
+.variant-switch input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.variant-switch label{padding:5px 11px;border:1px solid var(--border);border-radius:999px;
+  font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none}
+.variant-switch label:hover{border-color:var(--accent);color:var(--accent)}
+.variant-switch input:checked + label{background:var(--accent);border-color:var(--accent);color:#fff}
+/* The focus ring goes on the label, since the input it belongs to is hidden. */
+.variant-switch input:focus-visible + label{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Every form is in the DOM and all but one is display:none. A hidden <img> is
+   never fetched, so the two you are not looking at cost nothing until you ask.
+   The hide rule is scoped to .pane so it outranks .failure's own display. */
+.pane .only{display:none}
+.pane-head .only-svg{display:inline}
+.pane-body > img.only-svg{display:block}
+.pane-body > .failure.only-svg{display:flex}
+/* An id inside :has() carries id specificity, so these outrank the defaults
+   above without any further help. */
+body:has(#pick-traced:checked) .only-svg,
+body:has(#pick-png:checked) .only-svg{display:none}
+body:has(#pick-traced:checked) .pane-head .only-traced{display:inline}
+body:has(#pick-traced:checked) .pane-body > img.only-traced{display:block}
+body:has(#pick-traced:checked) .pane-body > .failure.only-traced{display:flex}
+body:has(#pick-png:checked) .pane-head .only-png{display:inline}
+body:has(#pick-png:checked) .pane-body > img.only-png{display:block}
+body:has(#pick-png:checked) .pane-body > .failure.only-png{display:flex}
 
 .source{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
 .source summary{cursor:pointer;font-size:12.5px;color:var(--muted);user-select:none}
