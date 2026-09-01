@@ -10,7 +10,7 @@ import * as pathUtils from './vendor/pathUtils.js';
 import * as regex from './vendor/regex.js';
 import { getSegments, getFontDetails, FONT_REGISTRY } from './bbox.js';
 import { textAdvance } from './text.js';
-import { createDefaultRegistry } from './fonts.js';
+import { createDefaultRegistry, parseWeight, parseItalic } from './fonts.js';
 import { htmlBoundingRect, VIEWPORT } from './html.js';
 import { installImageLoading, IMAGE_OPTIONS } from './images.js';
 
@@ -42,6 +42,7 @@ export function installGeometry(window, { fontRegistry, imageOptions, viewport }
   installImageLoading(window);
 
   installComputedInitialValues(window);
+  installCanvasMeasurement(window);
 
   if (window.SVGElement.prototype.getBBox) return registry;
 
@@ -245,4 +246,66 @@ function installComputedInitialValues(window) {
   };
   patched.patched = true;
   window.getComputedStyle = patched;
+}
+
+// The 2D-context surface cytoscape actually touches. Measured by handing it a
+// recording stub: it reads backingStorePixelRatio, sets `font`, and calls
+// measureText. Nothing is ever painted, because mermaid uses cytoscape purely
+// as a layout engine -- it removes the container before the layout runs and
+// only reads node positions back out.
+const CSS_FONT = /^\s*(?:(italic|oblique)\s+)?(?:(normal|bold|[1-9]00)\s+)?([\d.]+(?:px|pt|em|rem)?)(?:\s*\/\s*[^\s]+)?\s+(.+)$/i;
+
+/**
+ * Give jsdom's <canvas> enough of a 2D context for cytoscape to construct its
+ * renderer.
+ *
+ * jsdom implements getContext() only when the optional `canvas` peer is
+ * installed, and throws "Not implemented" otherwise. cytoscape treats a null
+ * context as fatal ("Could not create canvas of type 2d"), which took out both
+ * diagram types that lay out through it -- mindmap and architecture -- on any
+ * machine where the native module was missing. Depending on it would mean
+ * reintroducing the cairo/pango toolchain this package deliberately dropped.
+ *
+ * measureText is answered from the same font metrics as the rest of the
+ * geometry engine rather than stubbed at 0. Mermaid overrides layoutDimensions
+ * on the nodes it lays out, so cytoscape's own measurements do not currently
+ * reach the output -- but a plausible width costs little and keeps a wrong
+ * number from quietly becoming load-bearing later.
+ */
+function installCanvasMeasurement(window) {
+  const proto = window.HTMLCanvasElement?.prototype;
+  if (!proto || proto.getContext?.sebastianjs) return;
+
+  const context = {
+    // Read by cytoscape to work out the device pixel ratio.
+    backingStorePixelRatio: 1,
+    font: '10px sans-serif',
+    measureText(text) {
+      const match = CSS_FONT.exec(this.font || '');
+      const registry = window.document[FONT_REGISTRY];
+      if (!match || !registry) return { width: 0 };
+      const [, style, weight, size, family] = match;
+      return {
+        width: textAdvance(String(text ?? ''), {
+          fontFamily: family,
+          fontSize: size,
+          fontWeight: parseWeight(weight),
+          fontStyle: parseItalic(style),
+        }, registry),
+      };
+    },
+  };
+
+  // A drawing call is a bug rather than something to emulate, but throwing
+  // would break a render over pixels nobody reads, so they are absorbed.
+  const noop = () => undefined;
+  const getContext = function getContext(type) {
+    return type === '2d' ? new Proxy(context, {
+      get: (target, prop) => (prop in target ? target[prop] : noop),
+    }) : null;
+  };
+  getContext.sebastianjs = true;
+  Object.defineProperty(proto, 'getContext', {
+    value: getContext, configurable: true, writable: true,
+  });
 }

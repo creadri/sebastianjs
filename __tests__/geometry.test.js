@@ -219,6 +219,34 @@ describe('computed styles', () => {
   });
 });
 
+describe('canvas measurement', () => {
+  // jsdom implements getContext() only when the optional native `canvas` peer
+  // is installed and throws "Not implemented" otherwise. cytoscape treats a
+  // null context as fatal, which took out both diagram types that lay out
+  // through it -- mindmap and architecture -- on any machine without it.
+  test('a 2D context exists whether or not the canvas module is installed', () => {
+    const canvas = document.createElement('canvas');
+    expect(canvas.getContext.sebastianjs).toBe(true);
+    const ctx = canvas.getContext('2d');
+    expect(ctx).toBeTruthy();
+    expect(ctx.backingStorePixelRatio).toBe(1);
+  });
+
+  test('measureText answers from the same font metrics as everything else', () => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = '12px Open Sans';
+    // The same string and Chrome reference width as the text-metrics tests.
+    expect(ctx.measureText('Hello Mermaid World').width).toBeCloseTo(119.266, 0);
+  });
+
+  test('a drawing call is absorbed rather than throwing', () => {
+    // Nothing is ever painted -- mermaid removes the container before the
+    // layout runs -- but a stray call must not take down a render.
+    const ctx = document.createElement('canvas').getContext('2d');
+    expect(() => { ctx.beginPath(); ctx.fillRect(0, 0, 1, 1); }).not.toThrow();
+  });
+});
+
 describe('paths', () => {
   // Upstream svgdom returns rx as the vertical extent of a half-ellipse, which
   // made every mermaid cylinder node ~61px too tall. See the PATCHED note in
