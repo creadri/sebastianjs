@@ -11,7 +11,7 @@ import * as regex from './vendor/regex.js';
 import { getSegments, getFontDetails, FONT_REGISTRY } from './bbox.js';
 import { textAdvance } from './text.js';
 import { createDefaultRegistry } from './fonts.js';
-import { htmlBoundingRect } from './html.js';
+import { htmlBoundingRect, VIEWPORT } from './html.js';
 import { installImageLoading, IMAGE_OPTIONS } from './images.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -26,12 +26,16 @@ const isSvgElement = (node) => node?.namespaceURI === SVG_NS;
 /**
  * Install geometry on a jsdom window. Idempotent per window.
  * @param {import('jsdom').DOMWindow} window
- * @param {{ fontRegistry?: import('./fonts.js').FontRegistry }} options
+ * @param {{ fontRegistry?: import('./fonts.js').FontRegistry,
+ *           imageOptions?: object,
+ *           viewport?: {width: number, height: number} }} options
  */
-export function installGeometry(window, { fontRegistry, imageOptions } = {}) {
+export function installGeometry(window, { fontRegistry, imageOptions, viewport } = {}) {
   const registry = fontRegistry ?? createDefaultRegistry();
   window.document[FONT_REGISTRY] = registry;
   window.document[IMAGE_OPTIONS] = imageOptions ?? {};
+  // Live object: sebDOM mutates it when a render asks for a different viewport.
+  window.document[VIEWPORT] = viewport ?? { width: 0, height: 0 };
 
   // Without this, an <img> in a label wedges the render: mermaid awaits a load
   // event that jsdom never fires. See images.js.
@@ -191,3 +195,4 @@ export function installGeometry(window, { fontRegistry, imageOptions } = {}) {
 
   return registry;
 }
+

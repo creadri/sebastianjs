@@ -152,6 +152,49 @@ const getPathSegments = (node, rbox) => {
 const union = (boxes) => boxes.reduce((last, curr) => last.merge(curr), new NoBox());
 
 /**
+ * SVG text is laid out under CSS `white-space: normal`: tabs and newlines
+ * become spaces, runs of whitespace collapse to a single space, and whitespace
+ * at the very start and end of the text element is dropped. The DOM hands us
+ * the raw character data, so without this a gantt task declared
+ * `Describe gantt syntax : after doc1, 3d` measures its trailing space, comes
+ * out ~3px wider than in Chrome, and mermaid moves the label outside the bar.
+ *
+ * Returns the collapsed contribution of every text node under `root`, keyed by
+ * node: collapsing spans runs, so a node cannot be processed on its own.
+ */
+const collapseWhitespace = (root) => {
+  const runs = [];
+  const collect = (node) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === child.TEXT_NODE) runs.push(child);
+      else if (child.nodeType === child.ELEMENT_NODE) collect(child);
+    }
+  };
+  collect(root);
+
+  const collapsed = new Map();
+  let pendingSpace = false; // a collapsed space, emitted only if text follows
+  let started = false; // suppresses leading whitespace until real text appears
+  for (const run of runs) {
+    let out = '';
+    for (const ch of run.data) {
+      if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f') {
+        pendingSpace = started;
+        continue;
+      }
+      if (pendingSpace) {
+        out += ' ';
+        pendingSpace = false;
+      }
+      out += ch;
+      started = true;
+    }
+    collapsed.set(run, out);
+  }
+  return collapsed;
+};
+
+/**
  * text-anchor applies to a whole text chunk, not to each run inside it. Runs are
  * therefore laid out as if anchored at the start and the chunk is shifted once,
  * using the full width of the outermost text element — measuring per-run made
@@ -160,7 +203,8 @@ const union = (boxes) => boxes.reduce((last, curr) => last.merge(curr), new NoBo
  */
 const getTextBBox = (node) => {
   const textRoot = findTextRoot(node);
-  const rootBoxes = getTextBBoxes(textRoot, textRoot).filter(isNotEmptyBox);
+  const ws = collapseWhitespace(textRoot);
+  const rootBoxes = getTextBBoxes(textRoot, textRoot, ws).filter(isNotEmptyBox);
   const rootUnion = union(rootBoxes);
 
   const anchor = getFontDetails(textRoot).textAnchor;
@@ -169,7 +213,7 @@ const getTextBBox = (node) => {
   else if (anchor === 'end') shift = -rootUnion.width;
 
   const boxes =
-    node === textRoot ? rootBoxes : getTextBBoxes(node, textRoot).filter(isNotEmptyBox);
+    node === textRoot ? rootBoxes : getTextBBoxes(node, textRoot, ws).filter(isNotEmptyBox);
   const box = union(boxes);
   if (!shift || box instanceof NoBox) return box;
   return new Box(box.x + shift, box.y, box.width, box.height);
@@ -195,6 +239,7 @@ const findTextRoot = (node) => {
 const getTextBBoxes = function (
   target,
   textRoot = target,
+  ws = new Map(),
   pos = { x: 0, y: 0 },
   dx = [0],
   dy = [0],
@@ -208,9 +253,9 @@ const getTextBBoxes = function (
 
   for (const node of iter) {
     if (node === target && node !== textRoot) {
-      return getTextBBoxes(node, node, pos, dx, dy);
+      return getTextBBoxes(node, node, ws, pos, dx, dy);
     }
-    getPositionDetailsFor(node, pos, dx, dy, boxes);
+    getPositionDetailsFor(node, ws, pos, dx, dy, boxes);
   }
 
   return boxes;
@@ -220,7 +265,7 @@ const isNotEmptyBox = (box) =>
   box.x !== 0 || box.y !== 0 || box.width !== 0 || box.height !== 0;
 
 // Mutates pos/dx/dy/boxes in place as it walks the run.
-const getPositionDetailsFor = (node, pos, dx, dy, boxes) => {
+const getPositionDetailsFor = (node, ws, pos, dx, dy, boxes) => {
   if (node.nodeType === node.ELEMENT_NODE) {
     const fontSize = parseFloat(getFontDetails(node).fontSize) || 16;
     const length = (value) => resolveLength(value, fontSize);
@@ -244,7 +289,8 @@ const getPositionDetailsFor = (node, pos, dx, dy, boxes) => {
     return;
   }
 
-  const data = node.data;
+  // The collapsed contribution of this run; see collapseWhitespace.
+  const data = ws.get(node) ?? node.data;
   // Anchoring is applied once per chunk in getTextBBox, not per run.
   const details = { ...getFontDetails(node), textAnchor: 'start' };
   const registry = registryFor(node);

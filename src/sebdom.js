@@ -17,12 +17,13 @@ export async function sebDOM({ width = 800, height = 600, fontRegistry } = {}) {
   });
   const { window } = dom;
 
-  const registry = installGeometry(window, {
-    fontRegistry: fontRegistry ?? createDefaultRegistry(),
-  });
-
   // Mutable so one long-lived window can serve renders with different viewports.
   const viewport = { width, height };
+
+  const registry = installGeometry(window, {
+    fontRegistry: fontRegistry ?? createDefaultRegistry(),
+    viewport,
+  });
 
   // jsdom reports 0 for these; mermaid reads them when sizing the diagram.
   Object.defineProperties(window.HTMLElement.prototype, {

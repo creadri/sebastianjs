@@ -141,6 +141,52 @@ describe('text layout', () => {
     const text = el('text', {}, g, 'Hello Mermaid World');
     expect(text.getComputedTextLength()).toBeCloseTo(119.266, 1);
   });
+
+  test('whitespace collapses the way SVG text layout collapses it', () => {
+    // A gantt task written `Task A     : a1, ...` keeps the padding in its
+    // label. Chrome lays text out under white-space:normal and measures just
+    // `Task A`; mermaid decides from that width whether the label fits inside
+    // the bar, so measuring the raw data pushes labels outside it.
+    const svg = svgRoot();
+    const font = { 'font-family': 'Open Sans', 'font-size': 11 };
+    const plain = el('text', font, svg, 'Task A');
+    const padded = el('text', font, svg, '  Task A     ');
+    const split = el('text', font, svg);
+    el('tspan', {}, split, 'Task ');
+    el('tspan', {}, split, ' A');
+
+    expect(plain.getBBox().width).toBeCloseTo(33.05, 0); // Chrome: 33.0498
+    expect(padded.getBBox().width).toBeCloseTo(plain.getBBox().width, 5);
+    expect(split.getBBox().width).toBeCloseTo(plain.getBBox().width, 5);
+  });
+});
+
+describe('page-flow layout', () => {
+  // A block-level div on the page is as wide as its containing block, not as
+  // wide as its contents. mermaid's gantt renderer takes the chart's whole
+  // width from the enclosing div's offsetWidth: shrink-to-fitting it reported
+  // 0, and gantt's fallback only catches undefined, so the time scale's range
+  // became [0, -150] and every bar landed at a negative x.
+  test('a block div fills the body, minus the UA margin Chrome applies', () => {
+    const outer = document.createElement('div');
+    document.body.appendChild(outer);
+    const inner = document.createElement('div');
+    outer.appendChild(inner);
+
+    expect(outer.offsetWidth).toBe(784); // Chrome, 800px viewport: 800 - 2*8
+    expect(inner.offsetWidth).toBe(784);
+  });
+
+  test('an out-of-flow div still shrink-to-fits', () => {
+    // mermaid measures its KaTeX probe in a position:absolute div, which takes
+    // its width from its content in Chrome too.
+    const div = document.createElement('div');
+    div.setAttribute('style', 'position: absolute');
+    div.innerHTML = '<span style="font-family: Open Sans; font-size: 16px">End</span>';
+    document.body.appendChild(div);
+
+    expect(div.offsetWidth).toBeCloseTo(28.5, 1);
+  });
 });
 
 describe('paths', () => {

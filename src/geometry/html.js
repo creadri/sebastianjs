@@ -27,6 +27,14 @@ import { naturalSizeOf } from './images.js';
 
 const DEFAULT_FONT_SIZE = 16;
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** The page viewport, published on the document by sebDOM. See flowWidth(). */
+export const VIEWPORT = Symbol.for('sebastianjs.viewport');
+
+/** The UA stylesheet's body margin, which Chrome applies and jsdom does not. */
+const BODY_MARGIN = 8;
+
 /** Tags whose UA display is block; anything else here is treated as inline. */
 const BLOCK_TAGS = new Set([
   'address', 'article', 'aside', 'blockquote', 'div', 'dl', 'dd', 'dt',
@@ -109,6 +117,75 @@ const isBlock = (el) => {
   if (display) return display === 'block' || display.startsWith('table') || display === 'list-item';
   return BLOCK_TAGS.has(tagOf(el));
 };
+
+/**
+ * True when a box takes its width from its containing block rather than from
+ * its own contents. Everything mermaid measures inside a <foreignObject> is a
+ * table-cell or an inline box and shrink-to-fits; a plain <div> on the page
+ * does not.
+ */
+function fillsContainingBlock(el) {
+  const display = declared(el, 'display');
+  if (display) {
+    if (display !== 'block' && display !== 'flow-root' && display !== 'list-item') return false;
+  } else if (!BLOCK_TAGS.has(tagOf(el))) {
+    return false;
+  }
+  const position = declared(el, 'position');
+  if (position === 'absolute' || position === 'fixed') return false;
+  const float = declared(el, 'float');
+  if (float && float !== 'none') return false;
+  return true;
+}
+
+/**
+ * Width of a block-level element laid out in the page's own flow, or null when
+ * the element is not in it — inside a <foreignObject>, out of flow, or not
+ * block-level — in which case the caller shrink-to-fits as before.
+ *
+ * Only mermaid's gantt renderer reads a page-flow width: it takes the chart's
+ * total width from `elem.parentElement.offsetWidth`. Shrink-to-fitting that
+ * div gave 0, and gantt's guard only catches `undefined`, so every x
+ * coordinate came out negative (the time scale's range was [0, -150]).
+ *
+ * Only margins are modelled, because the only one that exists here is the
+ * body's: Chrome reports 784 for a bare div in an 800px viewport.
+ */
+function flowWidth(el) {
+  const document = el.ownerDocument;
+  const viewport = document?.[VIEWPORT];
+  const body = document?.body;
+  if (!viewport || !body) return null;
+
+  const ancestors = [];
+  let node = el;
+  while (node && node.nodeType === 1 && node !== body) {
+    // A <foreignObject> ancestor means this is label HTML, not page flow.
+    if (node.namespaceURI === SVG_NS) return null;
+    if (!fillsContainingBlock(node)) return null;
+    ancestors.push(node);
+    node = node.parentNode;
+  }
+  // Detached, or hanging off <head>: nothing to resolve against.
+  if (node !== body) return null;
+
+  let width = viewport.width - 2 * margin(body, BODY_MARGIN);
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const box = ancestors[i];
+    const explicit = resolveLength(declared(box, 'width'), fontFor(box, null).fontSize);
+    width = Number.isFinite(explicit) ? explicit : width - 2 * margin(box, 0);
+  }
+  return Math.max(width, 0);
+}
+
+/** A box's horizontal margin, assumed symmetric. */
+function margin(el, fallback) {
+  const value = resolveLength(
+    declared(el, 'margin-left') ?? declared(el, 'margin'),
+    fontFor(el, null).fontSize
+  );
+  return Number.isFinite(value) ? value : fallback;
+}
 
 /**
  * Flatten an element's descendants into a list of items per block:
@@ -379,10 +456,16 @@ export function htmlBoundingRect(el) {
   const explicitWidth = resolveLength(declared(el, 'width'), fontSize);
   const maxWidth = resolveLength(declared(el, 'max-width'), fontSize);
 
-  // An explicit width wins; otherwise wrap at max-width unless nowrap forbids it.
+  // A block in the page's own flow is as wide as its containing block, whatever
+  // it contains; only its height comes from its contents.
+  const flow = Number.isFinite(explicitWidth) ? null : flowWidth(el);
+
+  // An explicit width wins, then the containing block, then max-width — unless
+  // nowrap forbids wrapping at all.
   let available = Infinity;
   if (!nowrap) {
     if (Number.isFinite(explicitWidth)) available = explicitWidth;
+    else if (flow !== null) available = flow;
     else if (Number.isFinite(maxWidth)) available = maxWidth;
   }
 
@@ -402,6 +485,7 @@ export function htmlBoundingRect(el) {
   }
 
   if (Number.isFinite(explicitWidth)) width = explicitWidth;
+  else if (flow !== null) width = flow;
   // A table-cell at nowrap still cannot exceed max-width; mermaid detects that
   // clamp (bbox.width === width) and re-measures in wrapping mode.
   else if (Number.isFinite(maxWidth)) width = Math.min(width, maxWidth);
@@ -409,7 +493,9 @@ export function htmlBoundingRect(el) {
   // its min-content width. At nowrap the clamp stands: Chrome reports exactly
   // max-width there, which is precisely the signal mermaid uses to decide it
   // must re-measure in wrapping mode.
-  if (!nowrap) width = Math.max(width, minContent);
+  // A page-flow block is the exception: content too wide to fit overflows it
+  // rather than widening it.
+  if (!nowrap && flow === null) width = Math.max(width, minContent);
 
   return {
     x: 0, y: 0, left: 0, top: 0,
