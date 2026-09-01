@@ -1,58 +1,25 @@
 # SebastianJS
 
-SebastianJS is a mermaid wrapper designed to make it able to perform server-side svg renderers without needing a headless browser.
+SebastianJS is a *mermaidjs* wrapper designed to make it able to perform server-side svg renderers without needing a headless browser.
 
 Sebastian :crab: is the little mermaid :mermaid: buttler/friend/assistant. And it's a catchy name so be it sebastianJS.
 
 ## Initial use case
 
-Got attached in generating mermaid diagrams for different projects. But quickly got stuck and amazed as well on how well mermaidjs is supported throughout a lot of tools.
-
-One key problem tough is that when it comes to exporting, not a lot of applications exports the mermaid diagrams well.
-
-In trying to create a simple application to solve this problem I came accross another problem: it requires a browser to render.
-
-Even mermaid-cli requires a headless browser and relies on puppeter. This is fine on a lot of levels but I think there should be an easier solution.
-
-This project is therefore born trying to render mermaid diagrams inside nodejs without requiring the whole browser and DOM.
+I like documentation-as-code for projects. MermaidJS is widely supported and is good enough for most use-cases. A problem arose quickly: the need of a real browser to render the diagrams and it's painfully slow and memory hungry.
 
 ## Goal
 
-Use default mermaidjs implementation, this is not a fork. It is designed to remain a wrapper.
+Use default *mermaidjs* implementation, this is not a fork. It is designed to remain a `wrapper`.
 
-Focus is made on implementing SVG exports.
-
-As this doesn't require a headless browser, it should be faster to render.
+It should be fast as it doesn't require a headless browser. Most of the gain is in the initial load though. The rendering engine might be a bit slower but overall it's fast.
 
 ## Installation
 
 ```bash
 npm install sebastianjs
 ```
-
 ## Usage
-
-### API
-
-```js
-import { render } from 'sebastianjs';
-
-const def = `graph TD; A[Start] --> B{OK?}; B -- Yes --> C[Done]; B -- No --> A;`;
-
-const svg = await render(def, {
-  theme: 'dark',
-  themeVariables: { primaryColor: '#3366ff' },
-  themeCSS: '.node rect{ rx:4; ry:4 }',
-  // Viewport hints only — the size of the "page" the diagram is laid out on.
-  // The rendered SVG sizes itself from its own bounding box (width="100%" plus
-  // a max-width style and a viewBox), exactly as mermaid does in a browser and
-  // as mermaid-cli emits.
-  width: 800,        // optional (defaults to 800)
-  height: 600,       // optional (defaults to 600)
-});
-
-// svg is a <svg …> string
-```
 
 ### CLI
 
@@ -71,6 +38,27 @@ sebastianjs input.mmd -o output.svg -t dark \
 # Set the viewport the diagram is laid out on. Like mermaid-cli's -w/-H these
 # are layout hints; the emitted SVG still sizes itself from its own bounding box.
 sebastianjs input.mmd -o out.svg -W 1200 -H 700
+```
+
+### API
+
+```js
+import { render } from 'sebastianjs';
+
+const def = `graph TD; A[Start] --> B{OK?}; B -- Yes --> C[Done]; B -- No --> A;`;
+const svg = await render(def, {
+  theme: 'dark',
+  themeVariables: { primaryColor: '#3366ff' },
+  themeCSS: '.node rect{ rx:4; ry:4 }',
+  // Viewport hints only — the size of the "page" the diagram is laid out on.
+  // The rendered SVG sizes itself from its own bounding box (width="100%" plus
+  // a max-width style and a viewBox), exactly as mermaid does in a browser and
+  // as mermaid-cli emits.
+  width: 800,        // optional (defaults to 800)
+  height: 600,       // optional (defaults to 600)
+});
+
+// svg is a <svg …> string
 ```
 
 ## Demos
@@ -102,60 +90,10 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [x] Make a tiny CLI
 - [x] Mermaid theme support
 - [x] Fix positioning and sizing issues
-- [ ] Release First viable option
-- [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
+- [x] Release First viable option
 - [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
-
-## Working State
-
-A manual, visual assessment of each diagram type against mermaid-cli's Chrome
-output, judged on the demo corpus in `samples/mermaid-demos`. This is the
-subjective companion to the automated gate: `npm run deviation` measures node
-placement (currently 0.016px mean deviation), but a diagram can be geometrically
-exact and still look wrong, which is what this table is for.
-
-| State | Meaning |
-|---|---|
-| `perfect` | Indistinguishable from Chrome |
-| `ok` | Correct; any difference is invisible in practice |
-| `mostly-fine` | Correct overall, with minor spacing or alignment differences |
-| `incorrect` | Renders, but the result is visibly wrong |
-| `error` | Does not render |
-
-Nothing is rated `perfect` yet. Of 31 types: 15 `ok`, 5 `mostly-fine`,
-2 `incorrect`, 9 `error` — and 6 of those 9 are types the pinned mermaid does
-not have at all, so they are unassessed rather than broken.
-
-| Mermaid Type | State | Notes |
-|---|---|---|
-| dataflowchart | ok |  |
-| mindmap | error | cytoscape's grid layout throws (`Cannot read properties of undefined (reading 'h')`) |
-| zenuml | error | Needs `@mermaid-js/mermaid-zenuml` registered; mermaid-cli bundles it, we do not |
-| c4context | incorrect | Renders, layout is mostly wrong |
-| gantt | incorrect | Renders, all elements are wrong |
-| architecture | mostly-fine | |
-| classchart | mostly-fine | 1 of 12 demos is invalid syntax; mermaid-cli rejects it too |
-| flowchart-elk | mostly-fine | |
-| state | mostly-fine | |
-| xychart | mostly-fine | |
-| block | ok | |
-| er | ok | |
-| er-multiline | ok | |
-| flowchart | ok | 63 demos, the largest group in the corpus |
-| git | ok | |
-| journey | ok | |
-| packet | ok | |
-| pie | ok | |
-| quadrantchart | ok | |
-| radar | ok | |
-| requirements | ok | |
-| sankey | ok | |
-| sequence | ok | |
-| timeline | ok | |
-| treemap | ok | |
-
-*2026-09-01* : Feels like a major milestone and this is genuinely usable right now.
-
+- [ ] Font Awesome integration
+- [ ] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
 
 ## Limitations
 
@@ -177,15 +115,12 @@ not have at all, so they are unassessed rather than broken.
 - **Not every diagram type is verified.** The parity suite covers flowchart,
   sequence, class, state, ER and the other stable types; beta diagrams are
   rendered but unmeasured.
-- **Two diagram types do not render yet.** `mindmap` fails on a DOM gap and
-  `zenuml` needs its plugin registered. mermaid-cli renders both, so these four
-  samples are ours to fix.
+- **One diagram type does not render yet.** `zenuml` needs its plugin
+  registered; mermaid-cli bundles it and we do not, so those two samples are
+  ours to fix.
 
-  Of the 292 sample diagrams, 234 render. The other 58 break down as 54 that
-  mermaid-cli fails on too — `samples/` is extracted from mermaid's `main`
-  branch, so it contains newer diagram types (`venn`, `railroad`, `treeView`,
-  `ishikawa`, `wardley`, …) than the installed mermaid supports — and the 4
-  above. Refresh with `npm run fetch:samples`.
+  Of the 228 sample diagrams, 223 render. The other 5 are those 2 `zenuml` and
+  3 that mermaid-cli rejects too, as invalid syntax. Refresh with `npm run fetch:samples`.
 
 ## Dependencies
 
@@ -195,11 +130,7 @@ of [svgdom](https://github.com/svgdotjs/svgdom)'s maths, both pure JavaScript.
 
 ### Mermaid is pinned, deliberately
 
-`mermaid` is an **exact** dependency, not a range, held at the version
-[mermaid-cli](https://github.com/mermaid-js/mermaid-cli) pins in its own
-lockfile. Correctness here is measured as agreement with mermaid-cli's Chrome
-output, so the two must run the same mermaid build -- otherwise the reference
-moves and the parity numbers stop meaning anything.
+`mermaidjs`' version is deliberately pinned to the same version as current mermaid-cli. This is done in order to be able to measure the drift between the same version.
 
 It matters more than it sounds. Mermaid reaches into the DOM as it renders, and
 this package supplies that DOM: mermaid 11.17 began building its styles with
@@ -223,9 +154,6 @@ npm test && npm run deviation
 
 `npm run check:mermaid` verifies the pin still matches without changing it, and
 `__tests__/versions.test.js` fails offline if a range ever creeps back in.
-
-Earlier versions needed node-canvas, and with it cairo, pango and a compiler
-toolchain. That dependency is gone — `npm install sebastianjs` is enough.
 
 ## Licence
 
@@ -278,6 +206,10 @@ xychart-beta
 ```
 
 <!-- BENCHMARK_END -->
+
+## AI assisted project
+
+A note on this part: While being somewhat a decent developer, I was not able to tackle this project without an AI assistant. Investigating how chrome handles calculation for DOM calls that mermaid does was hell without it.
 
 ## How are things so far
 
