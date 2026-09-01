@@ -6,6 +6,93 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.0] - 2026-09-01
+
+### Added
+- **`inlineStyles`, `bakeMarkers`, and a `portable` preset that turns on both
+  plus `flattenLabels`.** Removing `foreignObject` in 0.3.0 was only the first
+  of three things a simple renderer cannot do. Mermaid keeps essentially all of
+  its paint in the `<style>` block addressed by class -- a node is emitted as
+  `<rect class="basic label-container">` with no fill and no stroke of its own
+  -- and draws its arrowheads with `<marker>` references. Renderers built on
+  SVG Tiny (QtSvg, and so Okular) implement neither, and fall back to the SVG
+  initial values: black boxes, no strokes, no arrows.
+
+  `inlineStyles` resolves the cascade onto the elements it applies to, as SVG
+  presentation attributes, reusing the same matcher measurement uses. Lengths
+  are written as bare numbers, because an SVG Tiny renderer that rejects
+  `stroke-width="1px"` falls back to 1 rather than reading it. `bakeMarkers`
+  resolves each `marker-end` into geometry: the point and tangent at the end of
+  the path, and a copy of the marker's content under the transform the spec
+  defines, carrying the paint it used to inherit from the `<marker>`.
+
+  Both passes only ever ADD. The `<style>` block and the `marker-*` attributes
+  stay, so a renderer that understood them keeps rendering from them -- CSS
+  beats a presentation attribute, which is what makes this safe. Nothing that
+  renders correctly today can regress. Across the sample corpus every diagram
+  has a fill or a stroke on every shape with the stylesheet deleted, and node
+  placement is byte-identical to a plain render.
+
+- **`textAsPaths`, which draws every text run as glyph outlines.** `portable`
+  still leaves the renderer one thing to find: the font. Nothing is embedded in
+  the SVG, so a rasterizer without Open Sans substitutes a face with different
+  metrics and the glyphs stop fitting the boxes they were measured into.
+
+  Each run becomes a `<path>` transformed out of the very font file fontkit
+  measured it with, so the file needs no font at all. It covers the text mermaid
+  draws itself -- sequence, gantt, pie, radar -- not only flattened labels;
+  across the sample corpus not one `<text>` survives. Chunking follows the SVG
+  model, so each absolute `x` re-anchors independently, and `xml:space` is
+  honoured because that is what flatten.js relies on. Implies `inlineStyles`,
+  since a rule like `.label text { fill: #333 }` stops matching the moment its
+  `<text>` becomes a `<g>`. Not part of `portable`: the corpus grows 5.4x and
+  the text stops being selectable.
+
+- **`renderPng()`, and a `.png` output path on the CLI.** Rasterizing is the one
+  thing this package cannot do from its own geometry, so it is delegated to
+  resvg -- as WebAssembly rather than a native binding, which keeps the promise
+  that there is no build step and no per-platform binaries, and as an
+  plain dependency, imported lazily so rendering only SVG never instantiates
+  the wasm. (npm has no equivalent of Python's `pkg[extra]`. Optional peer and
+  then optionalDependency were both tried: 2.5MB against mermaid's 84MB is 3%
+  of an install, which is not worth charging every PNG user a second package to
+  discover. Note it is MPL-2.0 where this package is MIT — no condition on your
+  code as an unmodified dependency, but a bundle redistributing it carries the
+  notice.)
+
+  What is not delegated is which fonts it draws with. Every run was measured
+  against a specific file in the registry, and those exact files are handed to
+  the rasterizer with system fonts switched off -- so the raster is drawn from
+  the faces the layout was computed from, on every machine, where mermaid-cli
+  gets whatever Chrome's font stack happens to find. Labels are flattened by
+  default, since resvg has no `foreignObject` and would otherwise draw a diagram
+  of empty boxes. The whole corpus rasterizes in 52s, 221 of 226 diagrams, none
+  malformed.
+
+  GIF and JPEG are not planned: they need separate encoders for formats nobody
+  wants for a line diagram.
+
+### Fixed
+- **`resolveLength` rejected the exponent form of a number.** `x="1.7451e-14"`
+  is valid SVG and mermaid emits it for radar axis labels; it parsed as NaN, and
+  every caller read that as "no value stated". Verified to change no geometry
+  across the 179 deterministic samples.
+
+### Changed
+- A parsed stylesheet now keeps its measured and its presentation declarations
+  apart. Measurement calls `cssStyleFor` once per property per element and each
+  call walks the winning rules' declarations, so handing that loop the paint
+  properties as well cost 55% on a full corpus render. Rules with nothing the
+  caller can use are now also skipped before their selector is matched, which is
+  the expensive half.
+- The comparison site shows every output form. The SebastianJS pane switches
+  between plain SVG, SVG with the text traced, and a PNG, one page-wide radio
+  group and no script -- the site still renders with JavaScript disabled.
+  `SITE_SAMPLES` and `SITE_OUT` make a build from a handful of samples possible,
+  since a full one is eleven minutes of headless Chrome.
+
+---
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
