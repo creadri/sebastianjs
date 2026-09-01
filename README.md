@@ -170,7 +170,7 @@ Thanks for the fonts under `fonts/` with their licenses:
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2026-08-31T22:16:42.051Z_ · Node v22.23.2
+_Last updated: 2026-09-01T07:31:35.905Z_ · Node v22.23.2
 
 Rendering 228 sample diagrams from `samples/mermaid-demos`, both renderers on the
 same mermaid config (Open Sans, default HTML labels). Regenerate with `npm run benchmark`.
@@ -181,21 +181,21 @@ headless Chromium for each invocation. That process startup is most of the gap.
 
 
 
-Not every sample renders in either tool: sebastianjs failed on 7, mermaid-cli failed on 3. Only successful renders are timed.
+Not every sample renders in either tool: sebastianjs failed on 5, mermaid-cli failed on 3. Only successful renders are timed.
 
 
-SebastianJS is **35x faster** per diagram.
+SebastianJS is **36x faster** per diagram.
 
 ### Summary
 
 | Metric | sebastianjs | mermaid-cli |
 | --- | --- | --- |
 | Samples | 228 | 228 |
-| Successful | 221 | 225 |
-| Avg ms | 58.96 | 2084.59 |
-| Total ms | 13030.00 | 469033.00 |
-| Min ms | 4.00 | 1662.00 |
-| Max ms | 400.00 | 2863.00 |
+| Successful | 223 | 225 |
+| Avg ms | 66.49 | 2377.88 |
+| Total ms | 14828.00 | 535024.00 |
+| Min ms | 4.00 | 1671.00 |
+| Max ms | 382.00 | 4235.00 |
 
 ### Average render time
 
@@ -203,7 +203,7 @@ SebastianJS is **35x faster** per diagram.
 xychart-beta
   title "Average Render Time (ms)"
   x-axis [sebastianjs, mermaid-cli]
-  bar [58.96, 2084.59]
+  bar [66.49, 2377.88]
 ```
 
 <!-- BENCHMARK_END -->
