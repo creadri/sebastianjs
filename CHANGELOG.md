@@ -6,6 +6,42 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.3.0] - 2026-09-01
+
+### Added
+- **`flattenLabels` option (`--flatten-labels` on the CLI), which rewrites
+  `<foreignObject>` HTML labels as SVG `<text>`.** librsvg and resvg do not
+  implement `foreignObject` and Inkscape only partly does, so every label
+  vanished in a non-browser rasterizer. The existing escape hatch,
+  mermaid's own `htmlLabels: false`, avoids that by measuring and drawing a
+  *different* label, which moves every node in the diagram and shows markdown,
+  entities and raw HTML literally.
+
+  Nothing is re-measured here. `html.js` already lays each label out to decide
+  how big its node is; `layoutLines()` now returns the runs that produced each
+  line alongside its width, and a post-processing pass turns those lines into
+  `<tspan>`s anchored on CSS half-leading baselines. Only the leaf changes: the
+  diagram keeps the geometry it was laid out with -- across the sample corpus
+  every deterministic diagram is byte-identical outside the labels -- and
+  `<b>`/`<i>`, entities and markdown emphasis survive as real styled text. The
+  HTML background behind an edge label becomes a `<rect>`.
+
+  Replaced boxes are placed too: runs now carry their offset along the line, and
+  `vertical-align` is resolved for them, so an `<img>` becomes an `<image>` on
+  the line's baseline (or wherever `vertical-align` puts it) with the text
+  around it pinned to the same offsets. A label keeps its `<foreignObject>` only
+  when it holds a box with no SVG equivalent (`<canvas>`, `<video>`,
+  `<iframe>`), or an image whose size never resolved.
+
+### Changed
+- README limitations. The `<foreignObject>` portability entry is gone, now that
+  `flattenLabels` answers it, and the fonts entry says that nothing is embedded
+  in the SVG -- so a rasterizer has to resolve the emitted `font-family` itself
+  or substitute one with different metrics. Sample counts corrected to the
+  current corpus: 226 diagrams, 221 of which render.
+
+---
+
 ## [0.2.1] - 2026-09-01
 
 ### Fixed
