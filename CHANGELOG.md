@@ -6,6 +6,53 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.2.0] - 2026-09-01
+
+Two diagram types went from unusable to matching Chrome. Both were browser
+fidelity gaps in the DOM shim rather than anything mermaid does wrong, and
+both were invisible to the parity gate: it measures node placement on the
+stable diagram types, and neither gantt nor mindmap contributes nodes to it.
+
+### Fixed
+- **gantt placed every element at a negative coordinate.** Mermaid's gantt
+  renderer takes the chart's total width from `elem.parentElement.offsetWidth`
+  and guards only against `undefined`. Our `offsetWidth` shrink-to-fit every
+  HTML element, so the div mermaid renders into measured 0, the d3 time
+  scale's range became `[0, -150]`, and `gantt__1` came out as
+  `viewBox="0 0 0 196"` with negative bar widths. A block-level element in the
+  page's own flow now takes its width from its containing block, as in a
+  browser; label HTML inside `<foreignObject>` and out-of-flow boxes still
+  shrink to fit. gantt is the only renderer that reads a page-flow width.
+- **gantt task labels measured their own padding.** SVG text lays out under
+  `white-space: normal`, so Chrome collapses the trailing spaces in a line
+  like `Describe gantt syntax : after doc1, 3d`. Measuring the raw character
+  data made labels up to 30px too wide -- enough to flip a label from inside
+  its bar to `taskTextOutsideRight`. Whitespace is now collapsed across a text
+  element's runs before measuring.
+
+  All ten gantt demos now match mermaid-cli exactly on viewBox, on every task
+  rect and on every label's placement and position.
+- **mindmap did not render at all**, throwing `Cannot read properties of
+  undefined (reading 'h')`. Mermaid lays mindmaps out with cytoscape, which
+  sizes its container as `clientWidth - parseFloat(padding-left) - ...`;
+  jsdom returns `""` for any property outside its small UA stylesheet where a
+  browser returns `"0px"`, so that produced `NaN`, the layout's bounding box
+  came back `undefined`, and it threw inside the `cytoscape()` constructor
+  before a single node was placed. `getComputedStyle` now reports the CSS
+  initial `0px` for the box-model lengths whose initial value is 0.
+
+  Both demos render, deterministically, with node sizes matching Chrome to
+  0.02px. Node positions land within ~15px on a 750px diagram: cose-bilkent
+  is an iterative force layout and amplifies sub-pixel size differences.
+
+### Changed
+- Node deviation across the corpus is unchanged at 0.016px over 86 compared
+  diagrams, with no unexpected failures. Corpus render failures drop from 7 to
+  5: the two mindmap demos now render, leaving the two `zenuml` demos and the
+  three samples mermaid-cli rejects as invalid syntax.
+
+---
+
 ## [0.1.1] - 2026-08-31
 
 ### Fixed
