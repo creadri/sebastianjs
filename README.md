@@ -14,6 +14,8 @@ Use default *mermaidjs* implementation, this is not a fork. It is designed to re
 
 It should be fast as it doesn't require a headless browser. Most of the gain is in the initial load though. The rendering engine might be a bit slower but overall it's fast.
 
+> As of version 0.4.0, SebastianJS offers what it has promised. It's almost pixel perfect, renders SVG fast, makes SVG that are actually usable by most common tools, renders PNG. All without much dependencies.
+
 ## Installation
 
 ```bash
@@ -75,25 +77,15 @@ import { renderPng } from 'sebastianjs';
 const { data, width, height } = await renderPng(def, { scale: 2, background: 'white' });
 ```
 
-Rasterizing is the one thing this package cannot do from its own geometry, so it
-is delegated to [resvg](https://github.com/linebender/resvg) — as WebAssembly
-rather than a native binding, so there is still no build step and no
-per-platform binaries. It is a plain dependency — 2.5 MB against the 84 MB
-mermaid itself unpacks to — so PNG works with no second install. It is loaded
-lazily, so rendering only SVG never instantiates it.
+Rasterizing is delegated to [resvg](https://github.com/linebender/resvg) as WebAssembly rather than a native binding, so no building step required.
 
-What is not delegated is which fonts it draws with. Every run was measured
-against a specific file in the font registry, and those exact files are handed to
-the rasterizer with system fonts switched off — so the raster is drawn from the
-faces the layout was computed from, on every machine. mermaid-cli renders through
-Chrome's font stack and gets whatever the machine happens to have.
+## SVG
 
-Labels are flattened by default here, since resvg does not implement
-`foreignObject` and would draw a diagram of empty boxes. `textAsPaths: true`
-removes the font question entirely, at the cost of a larger intermediate SVG.
+By default, mermaid generates SVG using ForeignObjects and Styles. Those two features are not widely supported in the rasterizing engines shiped with common tools like Krita, Gwenview, Microsoft Office and many more.
 
-The whole 226-sample corpus rasterizes in 52s, about 235ms a diagram including
-layout.
+The ´-p´ option traces the font and gets rid of styles.
+
+ForeignObjects are flattened by default.
 
 ## Demos
 
@@ -122,15 +114,14 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
 - [x] Implement tests for all known mermaidjs diagrams (excluding beta ones)
 - [x] Make first render implementation with minimal DOM support for basic flowchart
 - [x] Make a tiny CLI
+- [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 - [x] Mermaid theme support
 - [x] Fix positioning and sizing issues
 - [x] Release First viable option
-- [x] Create a benchmark to assess the difference in performance compared to mermaid-cli
 - [ ] Font Awesome support
 - [ ] Katex support
-- [x] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it
-      (PNG ships; GIF and JPEG do not, and are not planned — they need separate
-      encoders for formats nobody wants for a line diagram)
+- [x] Analyze the feasability of PNG/GIF/JPEG exports and if reasonable implement it.
+- [x] Implementing PNG export, GIF & JPEG out and not planned.
 
 ## Limitations
 
@@ -143,21 +134,15 @@ node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
   metrics and the glyphs no longer fill the boxes they were measured into.
   `textAsPaths: true` removes that second requirement, and `renderPng` hands the
   rasterizer the measured files directly.
-- **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; we do
-  not implement it, so those labels measure as raw TeX source and the diagram is
-  sized wrongly.
+- **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; We don't support KaTeX yet.
 - **Line breaking implements a subset of UAX #14.** Labels wrap at spaces,
-  hyphens, slashes, close punctuation and between CJK characters. Rare cases can
-  land on a different line count than a browser.
+  hyphens, slashes, close punctuation and between CJK characters. Rare cases can land on a different line count than a browser.
 - **Not every diagram type is verified.** The parity suite covers flowchart,
   sequence, class, state, ER and the other stable types; beta diagrams are
   rendered but unmeasured.
 - **One diagram type does not render yet.** `zenuml` needs its plugin
   registered; mermaid-cli bundles it and we do not, so those two samples are
   ours to fix.
-
-  Of the 226 sample diagrams, 221 render. The other 5 are those 2 `zenuml` and
-  3 that mermaid-cli rejects too, as invalid syntax. Refresh with `npm run fetch:samples`.
 
 ## Dependencies
 
@@ -170,33 +155,6 @@ WebAssembly, so still no build step and no per-platform binaries. It has no
 dependencies and no install scripts of its own. It is MPL-2.0 where the rest of
 this package is MIT; as an unmodified dependency that puts no condition on your
 code, but a bundle that redistributes it carries the notice.
-
-### Mermaid is pinned, deliberately
-
-`mermaidjs`' version is deliberately pinned to the same version as current mermaid-cli. This is done in order to be able to measure the drift between the same version.
-
-It matters more than it sounds. Mermaid reaches into the DOM as it renders, and
-this package supplies that DOM: mermaid 11.17 began building its styles with
-`new CSSStyleSheet()`, which threw on every render against a global that was
-never forwarded. A floating range shipped that to users while the suite stayed
-green on an older locked copy.
-
-The sample corpus is pinned the same way -- `npm run fetch:samples` clones the
-`mermaid@<version>` tag rather than the default branch, so demos never use
-syntax the pinned mermaid cannot parse.
-
-To move to a newer mermaid, upgrade mermaid-cli and follow it:
-
-```bash
-npm install -D @mermaid-js/mermaid-cli@latest
-npm run sync:mermaid      # pin mermaid to whatever that release locks
-npm install
-npm run fetch:samples     # refresh the corpus at the matching tag
-npm test && npm run deviation
-```
-
-`npm run check:mermaid` verifies the pin still matches without changing it, and
-`__tests__/versions.test.js` fails offline if a range ever creeps back in.
 
 ## Licence
 
@@ -249,6 +207,42 @@ xychart-beta
 ```
 
 <!-- BENCHMARK_END -->
+
+## Dev Notes
+
+### Samples
+
+Refresh demo samples with `npm run fetch:samples`, fetches mermaid demos from official repo.
+
+> It doesn't work for your usecase ? Submit a Sample in /samples with a PR.
+
+### Mermaid is pinned, deliberately
+
+`mermaidjs`' version is deliberately pinned to the same version as current mermaid-cli. This is done in order to be able to measure the drift between the same version.
+
+It matters more than it sounds. Mermaid reaches into the DOM as it renders, and
+this package supplies that DOM: mermaid 11.17 began building its styles with
+`new CSSStyleSheet()`, which threw on every render against a global that was
+never forwarded. A floating range shipped that to users while the suite stayed
+green on an older locked copy.
+
+The sample corpus is pinned the same way -- `npm run fetch:samples` clones the
+`mermaid@<version>` tag rather than the default branch, so demos never use
+syntax the pinned mermaid cannot parse.
+
+To move to a newer mermaid, upgrade mermaid-cli and follow it:
+
+```bash
+npm install -D @mermaid-js/mermaid-cli@latest
+npm run sync:mermaid      # pin mermaid to whatever that release locks
+npm install
+npm run fetch:samples     # refresh the corpus at the matching tag
+npm test && npm run deviation
+```
+
+`npm run check:mermaid` verifies the pin still matches without changing it, and
+`__tests__/versions.test.js` fails offline if a range ever creeps back in.
+
 
 ## AI assisted project
 
