@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 // Benchmark SebastianJS render performance against mermaid-cli (mmdc) over sample .mmd files
 // Updates README.md between BENCHMARK_START / BENCHMARK_END markers with a Mermaid graph.
+//
+// SebastianJS is timed in each of the forms it can emit, because they do not
+// cost the same: tracing text walks every glyph, and PNG rasterizes on top of a
+// render. Quoting only the fastest of the three would misprice the other two.
 
 import { readdir, readFile, writeFile, stat, unlink, access } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { render, dispose } from '../src/index.js';
+import { render, renderPng, dispose } from '../src/index.js';
 import { spawnMmdc } from './mmdc-wrapper.mjs';
 
 const SAMPLES_DIR = 'samples/mermaid-demos';
@@ -140,23 +144,54 @@ async function writeTempPptrConfig() {
   return cfgPath;
 }
 
-async function benchmarkSebastian(file) {
-  const def = await readFile(file, 'utf8');
-  return timeAsync(() => render(def, { width: 800, height: 600, mermaidConfig: MERMAID_CONFIG }));
-}
+const RENDER_OPTIONS = { width: 800, height: 600, mermaidConfig: MERMAID_CONFIG };
 
-async function benchmarkMmdc(file, cfgPath) {
-  return timeAsync(async () => {
-    const tmpOut = join(
-      process.env.TMPDIR || '/tmp',
-      `seb-bench-${process.pid}-${Math.random().toString(36).slice(2)}.svg`
-    );
-    try {
-      await spawnMmdc(['-i', file, '-o', tmpOut, '-c', cfgPath], { stdio: 'ignore' });
-    } finally {
-      try { await unlink(tmpOut); } catch {}
-    }
-  });
+/**
+ * What gets timed, in the order it is reported. `run` receives both the file
+ * and its definition, because mermaid-cli reads from disk and the rest do not.
+ */
+const RUNNERS = [
+  {
+    key: 'svg',
+    axis: 'SVG',
+    name: 'sebastianjs SVG',
+    note: 'the default output, HTML labels and all',
+    run: (file, def) => render(def, RENDER_OPTIONS),
+  },
+  {
+    key: 'traced',
+    axis: 'traced',
+    name: 'sebastianjs traced',
+    note: '`portable` plus `textAsPaths`: no foreignObject, no stylesheet, no font',
+    run: (file, def) => render(def, { ...RENDER_OPTIONS, portable: true, textAsPaths: true }),
+  },
+  {
+    key: 'png',
+    axis: 'PNG',
+    name: 'sebastianjs PNG',
+    note: 'a render plus rasterization by resvg',
+    run: (file, def) => renderPng(def, RENDER_OPTIONS),
+  },
+  {
+    key: 'mmdc',
+    axis: 'mermaid-cli',
+    name: 'mermaid-cli',
+    note: 'a fresh Node and headless Chromium per invocation',
+    needsMmdc: true,
+    run: (file, def, { cfgPath }) => runMmdc(file, cfgPath),
+  },
+];
+
+async function runMmdc(file, cfgPath) {
+  const tmpOut = join(
+    process.env.TMPDIR || '/tmp',
+    `seb-bench-${process.pid}-${Math.random().toString(36).slice(2)}.svg`
+  );
+  try {
+    await spawnMmdc(['-i', file, '-o', tmpOut, '-c', cfgPath], { stdio: 'ignore' });
+  } finally {
+    try { await unlink(tmpOut); } catch {}
+  }
 }
 
 function summarize(name, results) {
@@ -178,75 +213,99 @@ function summarize(name, results) {
 
 function formatNumber(n) { return n.toFixed(2); }
 
-function buildChart(seb, mmdc) {
+function buildChart(series) {
   const title = 'Average Render Time (ms)';
-  const se = formatNumber(seb.avg);
-  const mm = mmdc ? formatNumber(mmdc.avg) : '0';
+  // Quoted, because an axis label with a hyphen in it is not a bare word.
+  const axis = series.map((s) => `"${s.axis}"`).join(', ');
+  const bars = series.map((s) => formatNumber(s.avg)).join(', ');
   // Verified to render with this project's own renderer.
-  if (!mmdc) return `xychart-beta\n  title "${title}"\n  x-axis [sebastianjs]\n  bar [${se}]`;
-  return `xychart-beta\n  title "${title}"\n  x-axis [sebastianjs, mermaid-cli]\n  bar [${se}, ${mm}]`;
+  return `xychart-beta\n  title "${title}"\n  x-axis [${axis}]\n  bar [${bars}]`;
 }
 
-function buildTable(seb, mmdc) {
-  const headers = ['Metric', 'sebastianjs', 'mermaid-cli'];
+function buildTable(series) {
+  const headers = ['Metric', ...series.map((s) => s.name)];
   const rows = [
-    ['Samples', seb.count, mmdc ? mmdc.count : '—'],
-    ['Successful', seb.ok, mmdc ? mmdc.ok : '—'],
-    ['Avg ms', formatNumber(seb.avg), mmdc ? formatNumber(mmdc.avg) : '—'],
-    ['Total ms', formatNumber(seb.total), mmdc ? formatNumber(mmdc.total) : '—'],
-    ['Min ms', formatNumber(seb.min), mmdc ? formatNumber(mmdc.min) : '—'],
-    ['Max ms', formatNumber(seb.max), mmdc ? formatNumber(mmdc.max) : '—'],
+    ['Samples', ...series.map((s) => s.count)],
+    ['Successful', ...series.map((s) => s.ok)],
+    ['Avg ms', ...series.map((s) => formatNumber(s.avg))],
+    ['Total ms', ...series.map((s) => formatNumber(s.total))],
+    ['Min ms', ...series.map((s) => formatNumber(s.min))],
+    ['Max ms', ...series.map((s) => formatNumber(s.max))],
   ];
-  const toRow = r => `| ${r.join(' | ')} |`;
-  return [toRow(headers), toRow(headers.map(()=>'---')), ...rows.map(toRow)].join('\n');
+  const toRow = (r) => `| ${r.join(' | ')} |`;
+  return [toRow(headers), toRow(headers.map(() => '---')), ...rows.map(toRow)].join('\n');
 }
 
-async function updateReadme(seb, mmdc, meta = {}) {
+async function updateReadme(series) {
   const md = await readFile(README, 'utf8');
   const startMarker = '<!-- BENCHMARK_START -->';
   const endMarker = '<!-- BENCHMARK_END -->';
 
+  const base = series.find((s) => s.key === 'svg');
+  const mmdc = series.find((s) => s.key === 'mmdc');
   const speedup =
-    mmdc && seb.avg > 0 ? `\n\nSebastianJS is **${(mmdc.avg / seb.avg).toFixed(0)}x faster** per diagram.` : '';
+    mmdc && base?.avg > 0
+      ? `SebastianJS is **${(mmdc.avg / base.avg).toFixed(0)}x faster** per diagram, ` +
+        `and **${(mmdc.avg / series.find((s) => s.key === 'png').avg).toFixed(0)}x** even ` +
+        'counting the rasterizer.'
+      : '';
 
   const missing = mmdc
     ? ''
-    : `\n**Note:** mermaid-cli not found at \`node_modules/.bin/mmdc\`; its results are omitted.\n`;
+    : '**Note:** mermaid-cli not found at `node_modules/.bin/mmdc`; its results are omitted.';
 
+  // Every SebastianJS form fails on the same unparseable samples, so they are
+  // reported once rather than three times over.
   const failed = [];
-  if (seb.count - seb.ok > 0) failed.push(`sebastianjs failed on ${seb.count - seb.ok}`);
+  const ourFailures = series.filter((s) => s.key !== 'mmdc').map((s) => s.count - s.ok);
+  if (ourFailures.some((n) => n > 0)) {
+    const same = ourFailures.every((n) => n === ourFailures[0]);
+    failed.push(
+      same
+        ? `SebastianJS failed on ${ourFailures[0]} in every form`
+        : series.filter((s) => s.key !== 'mmdc').map((s) => `${s.name} failed on ${s.count - s.ok}`).join(', ')
+    );
+  }
   if (mmdc && mmdc.count - mmdc.ok > 0) failed.push(`mermaid-cli failed on ${mmdc.count - mmdc.ok}`);
-  const failures = failed.length ? `\n\nNot every sample renders in either tool: ${failed.join(', ')}. Only successful renders are timed.` : '';
+  const failures = failed.length
+    ? `Not every sample parses: ${failed.join(', ')}. Only successful renders are timed.`
+    : '';
+
+  const legend = series.map((s) => `- **${s.name}** — ${s.note}`).join('\n');
 
   const section = [
     '## Benchmark',
     '',
     `_Last updated: ${new Date().toISOString()}_ · Node ${process.version}`,
     '',
-    `Rendering ${seb.count} sample diagrams from \`${SAMPLES_DIR}\`, both renderers on the`,
-    'same mermaid config (Open Sans, default HTML labels). Regenerate with `npm run benchmark`.',
+    `Rendering ${base?.count ?? 0} sample diagrams from \`${SAMPLES_DIR}\`, every renderer on`,
+    'the same mermaid config (Open Sans, default HTML labels). Regenerate with',
+    '`npm run benchmark`.',
+    '',
+    legend,
     '',
     'The comparison is library-versus-CLI, which is what you would actually choose',
     'between: SebastianJS renders in-process, while mermaid-cli starts Node and a',
     'headless Chromium for each invocation. That process startup is most of the gap.',
-    missing,
-    failures,
-    speedup,
+    // Each of these is a paragraph or nothing at all; blank ones must not leave
+    // a run of empty lines behind them.
+    ...[missing, failures, speedup].filter(Boolean).flatMap((text) => ['', text]),
     '',
     '### Summary',
     '',
-    buildTable(seb, mmdc),
+    buildTable(series),
     '',
     '### Average render time',
     '',
     '```mermaid',
-    buildChart(seb, mmdc),
+    buildChart(series),
     '```',
     '',
   ].join('\n');
+
   let next;
   if (md.includes(startMarker) && md.includes(endMarker)) {
-  next = md.replace(new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`), `${startMarker}\n${section}\n${endMarker}`);
+    next = md.replace(new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`), `${startMarker}\n${section}\n${endMarker}`);
   } else {
     next = md.trimEnd() + `\n\n${startMarker}\n${section}\n${endMarker}\n`;
   }
@@ -279,55 +338,78 @@ async function main() {
   // Warm up so the first sample does not absorb mermaid's module-load cost.
   await render('graph TD; warmup --> ok;').catch(() => {});
 
-  const sebResults = [];
   const mmdcAvailable = hasMmdc();
+  const runners = RUNNERS.filter((r) => !r.needsMmdc || mmdcAvailable);
+
   const cfgPath = join(
     process.env.TMPDIR || '/tmp',
     `seb-bench-cfg-${process.pid}.json`
   );
   await writeFile(cfgPath, JSON.stringify(MERMAID_CONFIG), 'utf8');
-  const mmdcResults = [];
+
+  const results = new Map(runners.map((r) => [r.key, []]));
   const failures = [];
   const timeouts = [];
-  const perFile = [];
 
+  // A full run is minutes long and renders every sample four ways. Without a
+  // sign of life there is no way to tell a slow diagram from a wedged one --
+  // or, when this run first crashed, where it got to.
+  const started = hrtimeMs();
+  const progress = (done) => {
+    const elapsed = ((hrtimeMs() - started) / 1000).toFixed(0);
+    process.stderr.write(`[bench] ${done} samples, ${elapsed}s, rss ${Math.round(process.memoryUsage().rss / 1048576)}MB\n`);
+  };
+
+  let fileIndex = -1;
   for (const file of samples) {
-    // Read definition once if filtering is requested
-    let defForType = null;
+    let def;
+    try { def = await readFile(file, 'utf8'); }
+    catch { continue; }
+    fileIndex++;
+
     if (allowList) {
-      try { defForType = await readFile(file, 'utf8'); }
-      catch { continue; }
-      const dtype = detectDiagramType(defForType) || '';
-      if (!allowList.includes(dtype)) {
-        // Skip non-allowed diagram types
-        continue;
-      }
+      const dtype = detectDiagramType(def) || '';
+      if (!allowList.includes(dtype)) continue;
       if (denyList && denyList.includes(dtype)) continue;
       if (args.verbose) console.log(`[bench] ${dtype}: ${file}`);
     }
-    if (sebResults.length >= args.max) break;
-    const seb = await benchmarkSebastian(file); sebResults.push(seb);
-    if (!seb.ok) {
-      failures.push({ tool: 'sebastianjs', file, error: seb.error?.message || String(seb.error) });
-      if (seb.error?.message === 'timeout') timeouts.push({ tool: 'sebastianjs', file });
-    }
-    if (mmdcAvailable) {
-      const mm = await benchmarkMmdc(file, cfgPath); mmdcResults.push(mm);
-      if (!mm.ok) {
-        failures.push({ tool: 'mmdc', file, error: mm.error?.message || String(mm.error) });
-        if (mm.error?.message === 'timeout') timeouts.push({ tool: 'mmdc', file });
+    if (results.get(runners[0].key).length >= args.max) break;
+
+    // Every form renders the same sample back to back, so a slow machine or a
+    // noisy neighbour moves all of them together rather than one of them.
+    //
+    // The order rotates per file because whichever runs first pays for warming
+    // that diagram type up. Fixed order had `traced` timing FASTER than the
+    // plain SVG it is a superset of -- 49ms against 84ms -- purely because it
+    // never went first. Rotating puts each form at the front an equal share of
+    // the time, so the cost is spread instead of charged to one of them.
+    const order = runners.map((_, i) => runners[(i + fileIndex) % runners.length]);
+    for (const runner of order) {
+      const result = await timeAsync(() => runner.run(file, def, { cfgPath }));
+      results.get(runner.key).push(result);
+      if (!result.ok) {
+        const error = result.error?.message || String(result.error);
+        failures.push({ tool: runner.key, file, error });
+        if (result.error?.message === 'timeout') timeouts.push({ tool: runner.key, file });
       }
     }
-    perFile.push({ file, seb, mmdc: mmdcResults[mmdcResults.length - 1] });
+
+    const done = results.get(runners[0].key).length;
+    if (done % 25 === 0) progress(done);
   }
+  progress(results.get(runners[0].key).length);
 
   try { await unlink(cfgPath); } catch {}
 
-  const sebSummary = summarize('sebastianjs', sebResults);
-  const mmdcSummary = mmdcAvailable ? summarize('mermaid-cli', mmdcResults) : null;
-  await updateReadme(sebSummary, mmdcSummary);
+  const series = runners.map((r) => ({ ...r, ...summarize(r.name, results.get(r.key)) }));
+  await updateReadme(series);
+
   const baseMsg = allowList ? `Benchmark complete (filtered types: ${allowList.join(',')})` : 'Benchmark complete';
-  console.log(baseMsg, sebSummary, mmdcSummary || '(mermaid-cli missing)');
+  console.log(baseMsg);
+  for (const s of series) {
+    console.log(`  ${s.name.padEnd(20)} avg ${formatNumber(s.avg).padStart(9)}ms  ok ${s.ok}/${s.count}`);
+  }
+  if (!mmdcAvailable) console.warn('  (mermaid-cli missing)');
   if (failures.length) console.warn('Failures:', failures.slice(0, 10));
   if (timeouts.length) console.warn('Timeouts:', timeouts.slice(0, 10));
 }

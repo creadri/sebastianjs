@@ -153,9 +153,9 @@ Thanks for the fonts under `fonts/` with their licenses:
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2026-09-02T07:07:30.299Z_ · Node v22.23.2
+_Last updated: 2026-09-02T08:28:55.741Z_ · Node v22.23.2
 
-Rendering 12 sample diagrams from `samples/mermaid-demos`, every renderer on
+Rendering 228 sample diagrams from `samples/mermaid-demos`, every renderer on
 the same mermaid config (Open Sans, default HTML labels). Regenerate with
 `npm run benchmark`.
 
@@ -168,21 +168,20 @@ The comparison is library-versus-CLI, which is what you would actually choose
 between: SebastianJS renders in-process, while mermaid-cli starts Node and a
 headless Chromium for each invocation. That process startup is most of the gap.
 
+Not every sample parses: SebastianJS failed on 5 in every form, mermaid-cli failed on 3. Only successful renders are timed.
 
-
-
-SebastianJS is **22x faster** per diagram, and **24x** even counting the rasterizer.
+SebastianJS is **35x faster** per diagram, and **20x** even counting the rasterizer.
 
 ### Summary
 
 | Metric | sebastianjs SVG | sebastianjs traced | sebastianjs PNG | mermaid-cli |
 | --- | --- | --- | --- | --- |
-| Samples | 12 | 12 | 12 | 12 |
-| Successful | 12 | 12 | 12 | 12 |
-| Avg ms | 76.92 | 60.25 | 70.67 | 1678.75 |
-| Total ms | 923.00 | 723.00 | 848.00 | 20145.00 |
-| Min ms | 18.00 | 24.00 | 23.00 | 1635.00 |
-| Max ms | 381.00 | 100.00 | 126.00 | 1752.00 |
+| Samples | 228 | 228 | 228 | 228 |
+| Successful | 223 | 223 | 223 | 225 |
+| Avg ms | 54.58 | 89.91 | 96.64 | 1911.68 |
+| Total ms | 12171.00 | 20050.00 | 21550.00 | 430127.00 |
+| Min ms | 3.00 | 4.00 | 8.00 | 1523.00 |
+| Max ms | 383.00 | 618.00 | 641.00 | 2370.00 |
 
 ### Average render time
 
@@ -190,7 +189,7 @@ SebastianJS is **22x faster** per diagram, and **24x** even counting the rasteri
 xychart-beta
   title "Average Render Time (ms)"
   x-axis ["SVG", "traced", "PNG", "mermaid-cli"]
-  bar [76.92, 60.25, 70.67, 1678.75]
+  bar [54.58, 89.91, 96.64, 1911.68]
 ```
 
 <!-- BENCHMARK_END -->
