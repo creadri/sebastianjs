@@ -16,6 +16,10 @@ It should be fast as it doesn't require a headless browser. Most of the gain is 
 
 > As of version 0.4.0, SebastianJS offers what it has promised. It's almost pixel perfect, renders SVG fast, makes SVG that are actually usable by most common tools, renders PNG. All without much dependencies.
 
+## Demos
+
+Prebuilt comparison demos are located in the github pages: https://sebastianjs.otterit.be
+
 ## Installation
 
 ```bash
@@ -87,27 +91,6 @@ The ´-p´ option traces the font and gets rid of styles.
 
 ForeignObjects are flattened by default.
 
-## Demos
-
-Prebuilt comparison demos are located in the github pages: https://creadri.github.io/sebastianjs/
-
-
-```bash
-npm run fetch:samples
-npm run build:site
-npm run benchmark
-
-# Optional: Run deviation comparison tests (mermaid-cli is a devDependency)
-DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js --runInBand
-
-# Run deviation on a single sample
-# Using env var (matches by basename or relative path under samples folder):
-DEVIATION_TESTS=1 DEVIATION_SAMPLE=flowchart__1.mmd npm test -- __tests__/samples-deviation.test.js --runInBand
-
-# Direct CLI for ad-hoc runs:
-node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
-```
-
 ## Roadmap
 
 - [x] Make structure of render method
@@ -170,10 +153,16 @@ Thanks for the fonts under `fonts/` with their licenses:
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2026-09-01T09:52:01.714Z_ · Node v22.23.2
+_Last updated: 2026-09-02T07:07:30.299Z_ · Node v22.23.2
 
-Rendering 228 sample diagrams from `samples/mermaid-demos`, both renderers on the
-same mermaid config (Open Sans, default HTML labels). Regenerate with `npm run benchmark`.
+Rendering 12 sample diagrams from `samples/mermaid-demos`, every renderer on
+the same mermaid config (Open Sans, default HTML labels). Regenerate with
+`npm run benchmark`.
+
+- **sebastianjs SVG** — the default output, HTML labels and all
+- **sebastianjs traced** — `portable` plus `textAsPaths`: no foreignObject, no stylesheet, no font
+- **sebastianjs PNG** — a render plus rasterization by resvg
+- **mermaid-cli** — a fresh Node and headless Chromium per invocation
 
 The comparison is library-versus-CLI, which is what you would actually choose
 between: SebastianJS renders in-process, while mermaid-cli starts Node and a
@@ -181,40 +170,32 @@ headless Chromium for each invocation. That process startup is most of the gap.
 
 
 
-Not every sample renders in either tool: sebastianjs failed on 5, mermaid-cli failed on 3. Only successful renders are timed.
 
-
-SebastianJS is **36x faster** per diagram.
+SebastianJS is **22x faster** per diagram, and **24x** even counting the rasterizer.
 
 ### Summary
 
-| Metric | sebastianjs | mermaid-cli |
-| --- | --- | --- |
-| Samples | 228 | 228 |
-| Successful | 223 | 225 |
-| Avg ms | 57.88 | 2093.04 |
-| Total ms | 12907.00 | 470934.00 |
-| Min ms | 4.00 | 1644.00 |
-| Max ms | 480.00 | 3273.00 |
+| Metric | sebastianjs SVG | sebastianjs traced | sebastianjs PNG | mermaid-cli |
+| --- | --- | --- | --- | --- |
+| Samples | 12 | 12 | 12 | 12 |
+| Successful | 12 | 12 | 12 | 12 |
+| Avg ms | 76.92 | 60.25 | 70.67 | 1678.75 |
+| Total ms | 923.00 | 723.00 | 848.00 | 20145.00 |
+| Min ms | 18.00 | 24.00 | 23.00 | 1635.00 |
+| Max ms | 381.00 | 100.00 | 126.00 | 1752.00 |
 
 ### Average render time
 
 ```mermaid
 xychart-beta
   title "Average Render Time (ms)"
-  x-axis [sebastianjs, mermaid-cli]
-  bar [57.88, 2093.04]
+  x-axis ["SVG", "traced", "PNG", "mermaid-cli"]
+  bar [76.92, 60.25, 70.67, 1678.75]
 ```
 
 <!-- BENCHMARK_END -->
 
 ## Dev Notes
-
-### Samples
-
-Refresh demo samples with `npm run fetch:samples`, fetches mermaid demos from official repo.
-
-> It doesn't work for your usecase ? Submit a Sample in /samples with a PR.
 
 ### Mermaid is pinned, deliberately
 
@@ -243,6 +224,23 @@ npm test && npm run deviation
 `npm run check:mermaid` verifies the pin still matches without changing it, and
 `__tests__/versions.test.js` fails offline if a range ever creeps back in.
 
+## Demos
+
+```bash
+npm run fetch:samples
+npm run build:site
+npm run benchmark
+
+# Optional: Run deviation comparison tests (mermaid-cli is a devDependency)
+DEVIATION_TESTS=1 npm test -- __tests__/samples-deviation.test.js --runInBand
+
+# Run deviation on a single sample
+# Using env var (matches by basename or relative path under samples folder):
+DEVIATION_TESTS=1 DEVIATION_SAMPLE=flowchart__1.mmd npm test -- __tests__/samples-deviation.test.js --runInBand
+
+# Direct CLI for ad-hoc runs:
+node scripts/deviation-suite.mjs -f samples/mermaid-demos/flowchart__1.mmd
+```
 
 ## AI assisted project
 
