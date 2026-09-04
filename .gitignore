@@ -151,3 +151,5 @@ samples/manifest.json
 
 # VScode
 .vscode
+# Devcontainer
+.devcontainer/devcontainer-lock.json
