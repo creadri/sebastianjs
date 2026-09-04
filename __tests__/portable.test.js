@@ -178,6 +178,24 @@ describe('textAsPaths', () => {
     expect(group.getAttribute('fill')).toBe('#333');
   });
 
+  it('paints each glyph, so a `.node path` rule cannot claim it', async () => {
+    // mermaid's stylesheet paints `.node rect, ..., .node path` in the node's
+    // own fill and border, for the shapes a node is drawn from. A rule that
+    // matches an element beats anything that element would otherwise inherit,
+    // so glyphs carrying no paint of their own came out the colour of the box
+    // behind them, outlined in its border colour.
+    const svg = await render(DIAGRAM, { portable: true, textAsPaths: true });
+    const glyphs = [...parseWithoutCss(svg).querySelectorAll('g.nodeLabel > path')];
+    expect(glyphs.length).toBeGreaterThan(0);
+    for (const glyph of glyphs) {
+      expect(glyph.getAttribute('fill')).toBe('#333');
+      expect(glyph.getAttribute('stroke')).toBe('none');
+      // The inline style is what actually outranks the rule; the presentation
+      // attributes are for renderers that ignore `style`.
+      expect(glyph.getAttribute('style')).toContain('fill:#333');
+    }
+  });
+
   it('drops the attributes that only described text', async () => {
     // The file must not need a font to render; a leftover font-family says it
     // still thinks it might.

@@ -27,6 +27,13 @@ const RUN_PAINT = [
   'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity',
 ];
 
+/**
+ * The paint that reaches a glyph by inheritance, and so has to be restated on
+ * it. `opacity` is deliberately absent: it is not inherited, it is already on
+ * the group, and applying it again per glyph would square it.
+ */
+const INHERITED_PAINT = RUN_PAINT.filter((property) => property !== 'opacity');
+
 /** Attributes that described the text, and mean nothing on a group of paths. */
 const TEXT_OWN = new Set([
   'x', 'y', 'dx', 'dy', 'rotate', 'textLength', 'lengthAdjust',
@@ -215,19 +222,51 @@ function draw(text, runs) {
 
     const path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('d', d);
-    // The run's own paint, which its <tspan> carried and a <path> would not
-    // inherit once the tspan is gone. Anything on the <text> itself is on the
-    // group already.
-    if (run.el && run.el !== text) {
-      for (const property of RUN_PAINT) {
-        const value = run.el.getAttribute(property) || run.el.style?.getPropertyValue?.(property);
-        if (value) path.setAttribute(property, value);
-      }
-    }
+    paint(path, run.el !== text ? run.el : null, text);
     group.appendChild(path);
   }
 
   return group;
+}
+
+/**
+ * State a glyph's paint on the glyph itself.
+ *
+ * Leaving it to be inherited from the group looks right and is not: a <path>
+ * with no fill of its own is not merely uncoloured, it is claimable. mermaid's
+ * stylesheet carries `.node rect, ..., .node path { fill: <node fill>; stroke:
+ * <node border> }` for the shapes a node is built from, and a rule that matches
+ * an element beats any value that element would otherwise inherit. Every
+ * outlined label inside a node was therefore painted the colour of the box
+ * behind it and outlined in its border colour.
+ *
+ * Stating it inline puts it out of reach — an inline style outranks any rule
+ * that is not !important — while the presentation attributes keep SVG Tiny
+ * renderers, which ignore `style` entirely, drawing the same thing.
+ */
+function paint(path, runEl, text) {
+  const stated = (el, property) =>
+    el?.style?.getPropertyValue?.(property) || el?.getAttribute?.(property) || null;
+
+  const declarations = [];
+  const set = (property, value) => {
+    path.setAttribute(property, value);
+    declarations.push(`${property}:${value}`);
+  };
+
+  // The run's own paint, which its <tspan> carried and a <path> would not
+  // inherit once the tspan is gone, falling back to what the <text> resolved to.
+  for (const property of RUN_PAINT) {
+    const own = stated(runEl, property);
+    const value = own ?? (INHERITED_PAINT.includes(property) ? stated(text, property) : null);
+    if (value) set(property, value);
+  }
+  // SVG's own initial values, stated so that an element-name rule cannot step in
+  // and supply different ones.
+  if (!path.hasAttribute('fill')) set('fill', '#000');
+  if (!path.hasAttribute('stroke')) set('stroke', 'none');
+
+  path.setAttribute('style', declarations.join(';'));
 }
 
 function preservesSpace(el) {
