@@ -24,6 +24,7 @@ import { cssStyleFor } from './css.js';
 import { parseWeight, parseItalic } from './fonts.js';
 import { resolveLength, resolveLineHeight } from './units.js';
 import { naturalSizeOf } from './images.js';
+import { isKatexRoot, katexLayout } from './katex.js';
 
 const DEFAULT_FONT_SIZE = 16;
 
@@ -202,6 +203,23 @@ function margin(el, fallback) {
 }
 
 /**
+ * KaTeX with `output: "htmlAndMathml"` -- the only mode mermaid asks for --
+ * emits every formula twice: a <math> copy for screen readers in
+ * `.katex-mathml`, and the visual one in `.katex-html`. katex.css hides the
+ * first with `position:absolute; clip-path: inset(50%)`, which we do not model,
+ * so measuring it would size the label for both copies and flatten.js would
+ * draw the formula twice. The <math> also carries `display="block"`, which
+ * declared() reads off the attribute, so it takes a line of its own.
+ *
+ * Nothing is lost by ignoring it here: the accessibility copy stays in the DOM
+ * for browsers, and SVG output has no use for it. This still matters when
+ * katexLayout() declines a formula and it falls back to being walked as text.
+ */
+function isHiddenKatexMathML(el) {
+  return el.classList?.contains('katex-mathml') ?? false;
+}
+
+/**
  * Flatten an element's descendants into a list of items per block:
  *   { type: 'text', text, font } | { type: 'break' } | { type: 'box', width, height }
  */
@@ -237,6 +255,29 @@ function collectBlocks(root, registry) {
         continue;
       }
       if (child.nodeType !== 1) continue;
+
+      if (isHiddenKatexMathML(child)) continue;
+
+      // A formula is laid out by KaTeX's own rules, not by this line breaker,
+      // and enters the line as a single box with the height and depth KaTeX
+      // computed for it.
+      if (isKatexRoot(child)) {
+        const math = katexLayout(child, registry, fontFor(child.parentNode, registry));
+        if (math) {
+          current.push({
+            type: 'box',
+            el: child,
+            katex: math,
+            // The formula sits on the line's baseline, so the box's bottom edge
+            // is its depth — plus the display wrapper's bottom margin — below
+            // that baseline.
+            verticalAlign: { keyword: 'length', raise: -(math.depth + math.marginBottom) },
+            width: math.width,
+            height: math.marginTop + math.height + math.depth + math.marginBottom,
+          });
+          continue;
+        }
+      }
 
       const tag = tagOf(child);
       if (tag === 'br') {

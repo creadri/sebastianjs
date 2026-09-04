@@ -9,6 +9,8 @@
     "cli": "node ./bin/sebastianjs",
     "fetch:samples": "node ./scripts/fetch-mermaid-demos.mjs",
     "sync:mermaid": "node ./scripts/sync-mermaid-version.mjs",
+    "vendor:katex": "node ./scripts/vendor-katex-css.mjs",
+    "compare": "node ./scripts/compare-chrome.mjs",
     "check:mermaid": "node ./scripts/sync-mermaid-version.mjs --check",
     "build:site": "node ./scripts/build-site.mjs",
     "benchmark": "node ./scripts/benchmark.mjs",

@@ -108,6 +108,8 @@ function boxesAreDrawable(layout) {
       for (const run of line.runs) {
         if (run.type !== 'box') continue;
         const box = run.item;
+        // A formula draws from its own laid-out items, not from `el`.
+        if (box.katex) continue;
         if (!box.el || !(box.width > 0) || !(box.height > 0)) return false;
         if (box.el.localName !== 'svg' && !box.el.getAttribute('src')) return false;
       }
@@ -129,6 +131,9 @@ function buildLabel(fo, host, layout) {
 
   const boxX = numberAttribute(fo, 'x', 0);
   const boxY = numberAttribute(fo, 'y', 0);
+  // Needed by the formula boxes as well as the label's own <text>, which is
+  // built further down.
+  const fill = colourOf(host);
   const boxWidth = numberAttribute(fo, 'width', layout.width);
   const boxHeight = numberAttribute(fo, 'height', layout.height);
 
@@ -168,8 +173,9 @@ function buildLabel(fo, host, layout) {
 
       for (const segment of segmentsOf(line)) {
         if (segment.type === 'box') {
-          const node = buildBox(document, segment.run, lineLeft, top, baseline, block, strut);
-          if (node) boxes.push(node);
+          boxes.push(
+            ...buildBox(document, segment.run, lineLeft, top, baseline, block, strut, fill)
+          );
           continue;
         }
         const tspan = document.createElementNS(SVG_NS, 'tspan');
@@ -205,7 +211,6 @@ function buildLabel(fo, host, layout) {
     applyFont(text, base, null);
     // Colour, by contrast, stays a presentation attribute so that themeCSS can
     // still recolour labels the way it does for mermaid's own <text> path.
-    const fill = colourOf(host);
     if (fill) text.setAttribute('fill', fill);
     // Spaces at a run boundary are inside a <tspan> edge, where SVG's default
     // whitespace handling would drop them: "Label <b>bold</b>" would come out as
@@ -316,10 +321,10 @@ function aboveBaseline(box, font) {
  * replaced box. Its offset along the line came out of the layout together with
  * the text around it, so the two stay locked whatever the rasterizer shapes.
  */
-function buildBox(document, run, lineLeft, lineTop, baseline, block, font) {
+function buildBox(document, run, lineLeft, lineTop, baseline, block, font, fill) {
   const box = run.item;
   const el = box.el;
-  if (!el || !(box.width > 0) || !(box.height > 0)) return null;
+  if (!box.katex && (!el || !(box.width > 0) || !(box.height > 0))) return [];
 
   const keyword = box.verticalAlign?.keyword ?? 'baseline';
   let y;
@@ -327,12 +332,20 @@ function buildBox(document, run, lineLeft, lineTop, baseline, block, font) {
   else if (keyword === 'bottom') y = lineTop + block.boxHeight - box.height;
   else y = baseline - aboveBaseline(box, font);
 
+  // A formula is a box to the line breaker but a set of independently placed
+  // glyphs and rules to the renderer. `y` is its top edge, so its own baseline
+  // is its height below that.
+  if (box.katex) {
+    const top = y + box.katex.marginTop;
+    return buildKatex(document, box.katex, lineLeft + run.x, top + box.katex.height, fill);
+  }
+
   let node;
   if (el.localName === 'svg') {
     node = el.cloneNode(true);
   } else {
     const href = el.getAttribute('src');
-    if (!href) return null;
+    if (!href) return [];
     node = document.createElementNS(SVG_NS, 'image');
     node.setAttribute('href', href);
     // librsvg and older resvg builds only look at the SVG 1.1 spelling.
@@ -343,7 +356,97 @@ function buildBox(document, run, lineLeft, lineTop, baseline, block, font) {
   node.setAttribute('y', round(y));
   node.setAttribute('width', round(box.width));
   node.setAttribute('height', round(box.height));
-  return node;
+  return [node];
+}
+
+/**
+ * Draw a laid-out formula at (`x`, `baseline`), as one <g class="katex">.
+ *
+ * Every run becomes its own <text> rather than a <tspan> inside a shared one.
+ * The positions are absolute already, so there is nothing for a shared chunk to
+ * buy — and it would cost: resvg resolves a single font per <text> element, so
+ * one <text> mixing a KaTeX_Math letter with a KaTeX_Main operator falls back to
+ * a substituted face for the whole formula.
+ *
+ * The class is not decoration. mermaid's own stylesheet carries
+ * `.node .katex path`, written for the <svg> shapes KaTeX embeds, and without a
+ * `.katex` ancestor those paths are claimed by `.node path` instead and painted
+ * in the node's fill — a radical drawn in the node's own background colour.
+ */
+function buildKatex(document, math, x, baseline, fill) {
+  const group = document.createElementNS(SVG_NS, 'g');
+  group.setAttribute('class', 'katex');
+  const paint = fill || '#000';
+
+  for (const item of math.items) {
+    if (item.type === 'text') {
+      const node = document.createElementNS(SVG_NS, 'text');
+      node.textContent = item.text;
+      node.setAttribute('x', round(x + item.x));
+      node.setAttribute('y', round(baseline + item.y));
+      node.setAttribute('style', 'text-anchor:start');
+      applyFont(node, item.font, null);
+      if (fill) node.setAttribute('fill', fill);
+      node.setAttributeNS(XML_NS, 'xml:space', 'preserve');
+      group.appendChild(node);
+      continue;
+    }
+
+    if (item.type === 'rule') {
+      if (!(item.width > 0)) continue;
+      // A <path>, not a <rect>: mermaid paints `.node rect` in the node's fill
+      // and there is no `.katex rect` to outrank it, so a fraction bar drawn as
+      // a rectangle comes out the colour of the box behind it.
+      const left = x + item.x;
+      const top = baseline + item.y;
+      // A bar is a fraction of a pixel at label sizes, and a rasterizer that
+      // rounds one down drops the fraction line entirely.
+      const thickness = Math.max(item.height, 0.5);
+      const node = document.createElementNS(SVG_NS, 'path');
+      node.setAttribute(
+        'd',
+        `M${round(left)},${round(top)}h${round(item.width)}v${round(thickness)}h${round(-item.width)}z`
+      );
+      paintShape(node, paint);
+      group.appendChild(node);
+      continue;
+    }
+
+    if (item.type === 'image' && item.el) {
+      const node = item.el.cloneNode(true);
+      node.setAttribute('x', round(x + item.x));
+      node.setAttribute('y', round(baseline + item.y));
+      node.setAttribute('width', round(item.width));
+      node.setAttribute('height', round(item.height));
+      // Narrow the viewBox to the box's own aspect ratio so an ordinary "meet"
+      // fit shows exactly what `slice` would, and the nested viewport crops the
+      // rest. See layoutEmbeddedSvg().
+      if (item.viewBox && item.height > 0) {
+        const [minX, minY, , vbHeight] = item.viewBox;
+        const visible = Math.min(vbHeight * (item.width / item.height), item.viewBox[2]);
+        node.setAttribute('viewBox', [minX, minY, visible, vbHeight].map(round).join(' '));
+        node.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+      }
+      // The glyph shapes inside carry no paint of their own and would be left
+      // to whichever rule reaches them.
+      for (const shape of node.getElementsByTagName('path')) paintShape(shape, paint);
+      group.appendChild(node);
+    }
+  }
+
+  return group.childNodes.length ? [group] : [];
+}
+
+/**
+ * Paint a shape so that neither the cascade nor the inlineStyles pass can
+ * repaint it: an inline style outranks any rule that matches, and applyDeclaration
+ * leaves an element alone once its inline style states the property. The
+ * presentation attributes are for SVG Tiny renderers, which ignore `style`.
+ */
+function paintShape(el, fill) {
+  el.setAttribute('style', `fill:${fill};stroke:none`);
+  el.setAttribute('fill', fill);
+  el.setAttribute('stroke', 'none');
 }
 
 /**

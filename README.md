@@ -117,7 +117,16 @@ ForeignObjects are flattened by default.
   metrics and the glyphs no longer fill the boxes they were measured into.
   `textAsPaths: true` removes that second requirement, and `renderPng` hands the
   rasterizer the measured files directly.
-- **Math labels are not typeset.** Mermaid renders `$$...$$` with KaTeX; We don't support KaTeX yet.
+- **Math labels are typeset, and mostly to the pixel.** Mermaid renders
+  `$$...$$` with KaTeX; its faces and the font-selecting part of its stylesheet
+  ship with this package, and `src/geometry/katex.js` lays the formula out from
+  the box tree KaTeX serialised into the DOM — so superscripts, fractions, roots
+  and stretched delimiters land where a browser puts them, rather than in
+  reading order on one baseline. Against Chrome (`npm run compare` — see
+  `scripts/compare-chrome.mjs`) every width matches to within 0.03px. Heights
+  match exactly for stacked constructs; a formula whose line box Chrome floors
+  at `line-height` comes out ~1px short, and a lone `\sqrt` ~3.8px short.
+  Nothing is done about `\tag`, `\href` or the alignment environments.
 - **Line breaking implements a subset of UAX #14.** Labels wrap at spaces,
   hyphens, slashes, close punctuation and between CJK characters. Rare cases can land on a different line count than a browser.
 - **Not every diagram type is verified.** The parity suite covers flowchart,
@@ -149,6 +158,12 @@ Demo files where taken from mermaid-js/mermaid repository
 Thanks for the fonts under `fonts/` with their licenses:
 - Noto Sans: [OFL](./fonts/Noto_Sans/OFL.txt)
 - Open Sans: [OFL](./fonts/Open_Sans/OFL.txt)
+- KaTeX: [MIT](./fonts/KaTeX/LICENSE) — vendored from the `katex` package by
+  `npm run vendor:katex`, together with the font-selecting subset of `katex.css`.
+  The faces are byte-identical to KaTeX's own but for two style bitfields:
+  every TTF KaTeX ships declares itself Regular, upright and non-bold, which a
+  browser never reads because `@font-face` states the style, but which leaves a
+  rasterizer unable to tell Bold from Italic.
 
 <!-- BENCHMARK_START -->
 ## Benchmark

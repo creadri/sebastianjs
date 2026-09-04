@@ -3,6 +3,7 @@ import { createDefaultRegistry } from './geometry/fonts.js';
 import { FONT_REGISTRY } from './geometry/bbox.js';
 import { IMAGE_OPTIONS } from './geometry/images.js';
 import { flattenForeignObjects } from './geometry/flatten.js';
+import { KATEX_FONT_CSS } from './geometry/katex-css.js';
 import { inlineStyles as inlineCascade } from './geometry/inline.js';
 import { bakeMarkers as bakeMarkersInto } from './geometry/markers.js';
 import { outlineText as outlineTextIn } from './geometry/outline.js';
@@ -259,10 +260,22 @@ async function renderOne(definition, options) {
         fontFamily,
         ...(theme ? { theme } : {}),
         ...(themeVariables ? { themeVariables } : {}),
-        ...(themeCSS ? { themeCSS } : {}),
+        // KaTeX's font rules, ahead of the caller's own CSS so those still win.
+        // mermaid bundles KaTeX's code but a browser would load its stylesheet
+        // separately; without it every formula is measured in the diagram's body
+        // font instead of the bundled KaTeX faces.
+        themeCSS: themeCSS ? `${KATEX_FONT_CSS}\n${themeCSS}` : KATEX_FONT_CSS,
         // Defaults to mermaid's own htmlLabels. A per-diagram value inside
         // mermaidConfig still wins, so callers can mix.
         htmlLabels,
+        // mermaid gates KaTeX on `window.MathMLElement`, which jsdom does not
+        // implement, and without it replaces every $$...$$ with the literal
+        // text "MathML is unsupported in this environment.". Forcing the legacy
+        // path both runs KaTeX and asks it for `htmlAndMathml` rather than bare
+        // MathML -- which is what we want regardless of the gate, since no SVG
+        // rasterizer draws MathML and the HTML branch is the one html.js can
+        // measure.
+        forceLegacyMathML: true,
         ...mermaidConfig,
         flowchart: {
           ...mermaidConfig.flowchart,

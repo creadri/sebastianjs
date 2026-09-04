@@ -11,6 +11,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const BUNDLED_FONT_DIR = path.join(__dirname, '..', '..', 'fonts');
 
+// KaTeX names its faces after the file prefix -- the CSS says
+// `font-family: KaTeX_Main`, not "Ka Te X Main" -- so the Google-Fonts
+// humanizer below would register a family no stylesheet ever asks for.
+export const KATEX_FONT_DIR = path.join(BUNDLED_FONT_DIR, 'KaTeX');
+
 // Google Fonts static naming: <Family>[_<Width>]-<Weight><Italic?>.ttf
 const WEIGHT_NAMES = {
   thin: 100,
@@ -115,8 +120,38 @@ export class FontRegistry {
     return this;
   }
 
-  /** Register every font file in a directory (non-recursive by default). */
-  registerFontDir(dir, { recursive = true } = {}) {
+  /**
+   * Register every font file in a directory (non-recursive by default).
+   * `skip` lists directories the walk must not descend into -- for families
+   * whose CSS name the filename parser cannot infer, and which the caller
+   * registers itself.
+   */
+  registerFontDir(dir, { recursive = true, skip = [] } = {}) {
+    let entries;
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return this;
+    }
+    const skipped = new Set(skip.map((d) => path.resolve(d)));
+    for (const entry of entries) {
+      const full = path.join(dir, entry);
+      if (recursive && statSync(full).isDirectory()) {
+        if (!skipped.has(path.resolve(full))) this.registerFontDir(full, { recursive, skip });
+        continue;
+      }
+      if (!/\.(ttf|otf)$/i.test(entry)) continue;
+      if (parseFontFileName(full)) this.registerFont(full);
+    }
+    return this;
+  }
+
+  /**
+   * Register the bundled KaTeX faces under the family names KaTeX's own
+   * stylesheet uses. The weight/italic half of the filename still parses --
+   * only the family has to be stated, as the raw prefix.
+   */
+  registerKatexFonts(dir = KATEX_FONT_DIR) {
     let entries;
     try {
       entries = readdirSync(dir);
@@ -124,13 +159,15 @@ export class FontRegistry {
       return this;
     }
     for (const entry of entries) {
-      const full = path.join(dir, entry);
-      if (recursive && statSync(full).isDirectory()) {
-        this.registerFontDir(full, { recursive });
-        continue;
-      }
       if (!/\.(ttf|otf)$/i.test(entry)) continue;
-      if (parseFontFileName(full)) this.registerFont(full);
+      const parsed = parseFontFileName(entry);
+      if (!parsed) continue;
+      const base = entry.replace(/\.(ttf|otf)$/i, '');
+      this.registerFont(path.join(dir, entry), {
+        family: base.slice(0, base.lastIndexOf('-')),
+        weight: parsed.weight,
+        italic: parsed.italic,
+      });
     }
     return this;
   }
@@ -248,7 +285,8 @@ export function parseItalic(value) {
 /** Registry preloaded with the fonts bundled in this repo. */
 export function createDefaultRegistry() {
   const registry = new FontRegistry();
-  registry.registerFontDir(BUNDLED_FONT_DIR);
+  registry.registerFontDir(BUNDLED_FONT_DIR, { skip: [KATEX_FONT_DIR] });
+  registry.registerKatexFonts();
   if (registry.families.has('open sans')) registry.setDefaultFamily('Open Sans');
   return registry;
 }

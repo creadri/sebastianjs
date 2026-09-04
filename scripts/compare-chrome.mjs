@@ -21,10 +21,21 @@ const DIAGRAMS = {
   class: 'classDiagram\n  Animal <|-- Duck\n  Animal <|-- Fish\n  Animal : +int age\n  Animal : +String gender\n  Animal: +isMammal()\n  class Duck{\n    +String beakColor\n    +swim()\n  }',
   state: 'stateDiagram-v2\n  [*] --> Still\n  Still --> [*]\n  Still --> Moving\n  Moving --> Still\n  Moving --> Crash\n  Crash --> [*]',
   er: 'erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ LINE-ITEM : contains\n  CUSTOMER }|..|{ DELIVERY-ADDRESS : uses',
+  // KaTeX formulas, which src/geometry/katex.js lays out from KaTeX's own box
+  // tree rather than from its CSS. One per construct that carries geometry:
+  // scripts, stacks, stretched delimiters and an embedded <svg>.
+  mathScripts: 'graph LR\n  A["$$x^2+y^2=z^2$$"]',
+  mathSymbols: 'graph LR\n  A["$$\\alpha\\beta\\gamma\\delta$$"]',
+  mathFrac: 'graph LR\n  A["$$\\frac{a+b}{c}$$"]',
+  mathSqrt: 'graph LR\n  A["$$\\sqrt{x+1}$$"]',
+  mathSum: 'graph LR\n  A["$$\\sum_{i=1}^{n} x_i \\le \\infty$$"]',
+  mathNested: 'graph LR\n  A["$$\\frac{\\sqrt{a}}{b^2}$$"]',
 };
 
 const dir = mkdtempSync(join(tmpdir(), 'seb-'));
-const cfg = { startOnLoad:false, securityLevel:'loose', htmlLabels:true,
+// forceLegacyMathML matches what render() defaults to: without it Chrome would
+// emit MathML for the formulas and we would be comparing different pictures.
+const cfg = { startOnLoad:false, securityLevel:'loose', htmlLabels:true, forceLegacyMathML:true,
   flowchart:{htmlLabels:true}, class:{htmlLabels:true},
   fontFamily:'Open Sans', themeVariables:{fontFamily:'Open Sans'} };
 writeFileSync(join(dir,'cfg.json'), JSON.stringify(cfg));
