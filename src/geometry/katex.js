@@ -38,6 +38,22 @@ const DEFAULT_FONT_SIZE = 16;
 /** Zero-width scaffolding: present to drive CSS, never drawn. */
 const SCAFFOLDING = new Set(['pstrut', 'vlist-s', 'strut', 'katex-mathml']);
 
+/**
+ * Boxes that draw but do not advance: KaTeX overlaps one glyph on another by
+ * giving the box `width: 0` and taking its content out of flow. This is how
+ * every negated relation is built — `\notin` is an `\in` with a `/` lapped
+ * over it — so counting their advance sets each one beside its base instead of
+ * across it, and the label grows by a glyph per negation.
+ *
+ * The value is where the content sits relative to the box's origin.
+ */
+const LAP = new Map([
+  ['llap', 'right'],
+  ['rlap', 'left'],
+  ['clap', 'center'],
+  ['thinbox', 'left'],
+]);
+
 /** True for the element that wraps one rendered formula. */
 export const isKatexRoot = (el) =>
   el?.nodeType === 1 && el.classList?.contains('katex');
@@ -300,6 +316,17 @@ function layoutBox(el, font) {
   if (classes.includes('hide-tail')) {
     const svg = Array.from(el.childNodes).find((n) => n.localName === 'svg');
     return svg ? layoutEmbeddedSvg(svg, font, el) : null;
+  }
+
+  const lap = classes.map((c) => LAP.get(c)).find(Boolean);
+  if (lap) {
+    const laid = layoutInline(el, font);
+    const shift =
+      lap === 'right' ? -laid.width : lap === 'center' ? -laid.width / 2 : 0;
+    return {
+      width: 0,
+      items: shift ? laid.items.map((item) => ({ ...item, x: item.x + shift })) : laid.items,
+    };
   }
 
   const placed = layoutInline(el, font);

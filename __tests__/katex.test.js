@@ -107,6 +107,21 @@ describe('KaTeX math labels', () => {
     for (const family of families) expect(family).toBeTruthy();
   });
 
+  // KaTeX builds a negated relation by lapping a slash over the base glyph in a
+  // box with `width: 0`. Counting that box's advance set the slash beside the
+  // symbol instead of across it -- "∈/∈" for \notin -- and grew the label by a
+  // glyph for every negation in it.
+  it('laps a negation over its symbol rather than beside it', async () => {
+    const widthOf = async (formula) => {
+      const svg = await render(`graph LR\n  A["$$${formula}$$"]`);
+      return Number(svg.match(/viewBox="[^ ]+ [^ ]+ ([\d.]+)/)[1]);
+    };
+    const plain = await widthOf('\\in');
+    const negated = await widthOf('\\notin');
+    // The slash takes no advance of its own, so the two are the same width.
+    expect(Math.abs(negated - plain)).toBeLessThan(1);
+  });
+
   it('resolves every KaTeX family the stylesheet names', async () => {
     const registry = createDefaultRegistry();
     for (const [family, weight, italic, expected] of [

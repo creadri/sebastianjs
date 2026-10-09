@@ -28,10 +28,14 @@ export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
  * cause is fixed — the suite reports any listed sample that has started passing.
  */
 export const KNOWN_DEVIATIONS = new Map([
-  // Math labels. Mermaid typesets $$...$$ with KaTeX, which we do not implement,
-  // so these labels measure as raw TeX source. A missing feature, not a bug.
-  ...['flowchart__39', 'flowchart__40', 'flowchart__41', 'flowchart__42', 'flowchart__43', 'flowchart__44'].map(
-    (name) => [`samples/mermaid-demos/${name}.mmd`, 'KaTeX math labels are not typeset']
+  // Math labels, within a pixel or two. The formulas themselves match Chrome —
+  // measured against it directly (`npm run compare`) every width lands inside
+  // 0.03px — and what is left is node height: these labels come out ~1px (under
+  // 1%) shorter, which moves the nodes below them by up to 2.3px. Our formula
+  // box agrees with Chrome's to 0.013px, so the pixel is lost after that, in
+  // mermaid's own arithmetic from label bbox to node height.
+  ...['flowchart__39', 'flowchart__40', 'flowchart__41', 'flowchart__42'].map(
+    (name) => [`samples/mermaid-demos/${name}.mmd`, 'math labels: node height ~1px short of Chrome']
   ),
   // One diagram (duplicated in the corpus) whose labels land on one fewer line
   // than Chrome. Label widths match to 0.008px, so this is the incomplete
@@ -134,6 +138,11 @@ async function renderWithMmdc(def, { width, height }) {
       securityLevel: 'loose',
       htmlLabels: true,
       flowchart: { htmlLabels: true },
+      // Also a default of ours. Chrome supports MathML, so without this it
+      // typesets $$...$$ as native MathML while we typeset KaTeX's HTML: two
+      // different pictures, and the comparison measures the difference between
+      // them rather than anything about this renderer.
+      forceLegacyMathML: true,
       // Must match src/index.js's default, or the two sides measure different
       // fonts and every width differs. Installed for Chrome via fontconfig; see
       // .devcontainer/setup.sh.

@@ -125,8 +125,10 @@ ForeignObjects are flattened by default.
   reading order on one baseline. Against Chrome (`npm run compare` — see
   `scripts/compare-chrome.mjs`) every width matches to within 0.03px. Heights
   match exactly for stacked constructs; a formula whose line box Chrome floors
-  at `line-height` comes out ~1px short, and a lone `\sqrt` ~3.8px short.
-  Nothing is done about `\tag`, `\href` or the alignment environments.
+  at `line-height` comes out ~1px short, and a lone `\sqrt` ~3.8px short. Over
+  the sample corpus (`npm run deviation`) that ~1px of label height is the whole
+  remaining difference, moving nodes by at most 2.3px. Nothing is done about
+  `\tag`, `\href` or the alignment environments.
 - **Line breaking implements a subset of UAX #14.** Labels wrap at spaces,
   hyphens, slashes, close punctuation and between CJK characters. Rare cases can land on a different line count than a browser.
 - **Not every diagram type is verified.** The parity suite covers flowchart,

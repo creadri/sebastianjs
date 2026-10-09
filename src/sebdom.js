@@ -77,9 +77,26 @@ export async function withGlobalDOM(window, fn) {
   try {
     return await fn();
   } finally {
+    await settle();
     for (const [key, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
       else delete globalThis[key];
     }
   }
 }
+
+/**
+ * Let work mermaid left in flight finish before the globals go away.
+ *
+ * `mermaid.render` resolving does not mean mermaid has stopped: a sequence
+ * diagram draws a KaTeX message by calling an async `byKatex` and never awaiting
+ * it, so the moment that function suspends on the dynamic `import()` of KaTeX,
+ * its continuation is scheduled to resume after our render has returned. It then
+ * reads `window` — which by then no longer exists — and the ReferenceError has
+ * nowhere to be caught, so it takes the process down.
+ *
+ * What that stray continuation draws is discarded: the SVG was serialised
+ * before it ran, and it appends to a container we are about to remove. It only
+ * has to not fail, so it is enough to give it the tick it is waiting for.
+ */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
