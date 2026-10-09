@@ -56,19 +56,46 @@ export const MMDC_TIMEOUT_MS = 25000;
 // Threshold for simplified report mode (pixels/units)
 export const SIMPLE_THRESHOLD_DEFAULT = parseFloat(process.env.DEVIATION_SIMPLE_THRESHOLD || '1.0');
 
-// Only compare these stable diagram types for deviation tests
+// The diagram types compared: every type in the corpus that mermaid-cli 12
+// renders. Keywords are matched without a `-beta` suffix, and stateDiagram
+// covers stateDiagram-v2. A type new in a later mermaid is not measured until
+// it is added here.
 export const ALLOWED_DIAGRAMS = [
   'graph',
   'flowchart',
+  'flowchart-elk',
   'sequenceDiagram',
   'classDiagram',
   'erDiagram',
   'gantt',
   'pie',
   'journey',
-  'stateDiagram', // includes stateDiagram-v2
+  'stateDiagram',
   'gitGraph',
   'quadrantChart',
+  'architecture',
+  'block',
+  'C4Context',
+  'C4Container',
+  'C4Component',
+  'C4Dynamic',
+  'C4Deployment',
+  'info',
+  'ishikawa',
+  'mindmap',
+  'packet',
+  'radar',
+  'railroad-ebnf',
+  'requirementDiagram',
+  'sankey',
+  'timeline',
+  'treeView',
+  'treemap',
+  'usecase',
+  'venn',
+  'wardley',
+  'xychart',
+  'zenuml',
 ];
 
 function getFirstKeyword(def) {
@@ -84,7 +111,9 @@ function getFirstKeyword(def) {
     }
     if (!trimmed) continue;
     if (trimmed.startsWith('%%')) continue; // mermaid comment
-    const m = trimmed.match(/^([A-Za-z][A-Za-z-]*)\b/);
+    // Digits included: without them C4Context read as nothing and the next
+    // line's `title` was taken instead, and stateDiagram-v2 as "stateDiagram-".
+    const m = trimmed.match(/^([A-Za-z][\w-]*)/);
     if (m) return m[1];
     // If this line starts with something else (like titles), keep scanning next lines
   }
@@ -93,7 +122,7 @@ function getFirstKeyword(def) {
 
 function isAllowed(def) {
   const kw = getFirstKeyword(def);
-  const normalized = kw === 'stateDiagram-v2' ? 'stateDiagram' : kw;
+  const normalized = kw === 'stateDiagram-v2' ? 'stateDiagram' : kw.replace(/-beta$/, '');
   if (ALLOWED_DIAGRAMS.includes(normalized)) return true;
   // Also accept if any non-comment, non-frontmatter line starts with graph/flowchart
   const lines = def.split(/\r?\n/);
@@ -130,7 +159,10 @@ async function renderWithMmdc(def, { width, height }) {
   try {
     writeFileSync(inputFile, def, 'utf8');
     cfgPath = join(tmpdir(), `pptr-cfg-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
-    writeFileSync(cfgPath, JSON.stringify({ args: PUPPETEER_ARGS }), 'utf8');
+    // mermaid-cli 12 dropped -w/-H, so the viewport goes in through puppeteer's
+    // defaultViewport. Diagrams that size to their container (gantt) read it.
+    const defaultViewport = width && height ? { width, height } : undefined;
+    writeFileSync(cfgPath, JSON.stringify({ args: PUPPETEER_ARGS, defaultViewport }), 'utf8');
     // Create a mermaid config to mirror our renderer defaults
     mermaidCfgPath = join(tmpdir(), `mermaid-cfg-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
     const mermaidCfg = {
@@ -151,8 +183,6 @@ async function renderWithMmdc(def, { width, height }) {
     };
     writeFileSync(mermaidCfgPath, JSON.stringify(mermaidCfg), 'utf8');
     const args = ['-i', inputFile, '-o', outputFile, '--puppeteerConfigFile', cfgPath, '-c', mermaidCfgPath];
-    if (width) args.push('-w', String(width));
-    if (height) args.push('-H', String(height));
     await Promise.race([
       spawnMmdc(args, { stdio: ['ignore','ignore','pipe'], env: { ...process.env } }),
       new Promise((_, reject) => setTimeout(()=>reject(new Error('mmdc timeout')), MMDC_TIMEOUT_MS)),
@@ -168,6 +198,30 @@ async function renderWithMmdc(def, { width, height }) {
 }
 
 import { JSDOM } from 'jsdom';
+
+/**
+ * An element id without the diagram's own id in front of it. mermaid 12 began
+ * prefixing node ids with the root <svg>'s id, which differs per renderer
+ * ("my-svg-flowchart-A-0" from mmdc, "sebastianjs-1-flowchart-A-0" from us),
+ * so unstripped no id is shared and every sample drops out of the comparison.
+ */
+function localId(el, doc) {
+  const id = el.id || el.getAttribute('id');
+  const prefix = doc.documentElement.getAttribute('id');
+  const local = id && prefix && id.startsWith(`${prefix}-`) ? id.slice(prefix.length + 1) : id;
+  // sankey numbers its nodes from a counter that lives as long as the mermaid
+  // module: mmdc starts every diagram at node-1, while our long-lived renderer
+  // is at node-14 by the third sankey, which paired unrelated nodes. Callers
+  // walk the document in order, so the nth such id is the nth node.
+  if (local && /^node-\d+$/.test(local)) {
+    const n = (counterIds.get(doc) ?? 0) + 1;
+    counterIds.set(doc, n);
+    return `node-#${n}`;
+  }
+  return local;
+}
+const counterIds = new WeakMap();
+
 function extractNodePositions(svg) {
   const dom = new JSDOM(svg, { contentType: 'image/svg+xml' });
   const doc = dom.window.document;
@@ -183,7 +237,7 @@ function extractNodePositions(svg) {
     return { x, y };
   };
   for (const node of nodes) {
-    const id = node.id || node.getAttribute('id');
+    const id = localId(node, doc);
     if (!id) continue;
     // Direct transform on the node
     let pos = parseTranslate(node.getAttribute('transform'));
@@ -234,7 +288,7 @@ function extractStructure(svg) {
   // Nodes: use g.node; fallback IDs by order
   const nodeList = Array.from(doc.querySelectorAll('g.node'));
   nodeList.forEach((g, i) => {
-    const id = g.id || g.getAttribute('id') || `node-index-${i}`;
+    const id = localId(g, doc) || `node-index-${i}`;
     const tr = getTranslate(g) || getTranslate(g.querySelector('[transform*="translate("]'));
     const rect = g.querySelector('rect');
     const rx = rect ? parseFloat(rect.getAttribute('x') || '0') : NaN;
@@ -246,7 +300,7 @@ function extractStructure(svg) {
   // Edges: use g.edgePath -> path d numbers; fallback IDs by order
   const edgeList = Array.from(doc.querySelectorAll('g.edgePath'));
   edgeList.forEach((g, i) => {
-    const id = g.id || g.getAttribute('id') || `edge-index-${i}`;
+    const id = localId(g, doc) || `edge-index-${i}`;
     const path = g.querySelector('path');
     const d = path ? path.getAttribute('d') : '';
     const nums = numberListFromPathD(d);
@@ -548,6 +602,11 @@ async function main(options = {}) {
   const avgRaw = ok.reduce((a,r)=>a+r.raw,0)/(ok.length||1);
   const avgRawTransCorr = ok.reduce((a,r)=>a+(r.rawTransCorr??NaN),0)/(ok.length||1);
   const failures = allOk.filter(r => r.norm > NORMALIZED_DEVIATION_THRESHOLD || r.raw > POSITION_DEVIATION_THRESHOLD);
+  // Neither of these reaches the averages, so a run where every sample errors
+  // or no node ids line up reads as a clean zero. mermaid-cli 12 dropping -w
+  // failed all 292 that way. Count them so the summary shows it.
+  const errored = results.filter(r => r.error);
+  const unmatched = results.filter(r => !r.error && !allOk.includes(r));
 
   // Aggregates for size/viewBox deviations
   const widthAbsAvg = avg(ok.map(r => r.sizeDev?.widthAbs));
@@ -618,6 +677,9 @@ async function main(options = {}) {
     viewBoxWidthRel: vbWRelAvg,
     failuresCount: failures.length,
     unexpectedFailures: unexpectedFailures.map((r) => normalise(r.file)),
+    erroredCount: errored.length,
+    unmatchedCount: unmatched.length,
+    ...(errored.length ? { firstError: `${normalise(errored[0].file)}: ${errored[0].error.slice(0, 200)}` } : {}),
   };
 }
 

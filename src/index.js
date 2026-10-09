@@ -125,6 +125,13 @@ let domPromise = null;
 let queue = Promise.resolve();
 let renderCounter = 0;
 
+/**
+ * Whether mermaid will typeset any KaTeX. It does so per label for text
+ * matching /\$\$(.*?)\$\$/; this also matches across lines, so it can only err
+ * towards including the stylesheet.
+ */
+const hasMath = (definition) => /\$\$[\s\S]*?\$\$/.test(definition);
+
 function sharedDOM() {
   domPromise ??= sebDOM({});
   return domPromise;
@@ -264,7 +271,13 @@ async function renderOne(definition, options) {
         // mermaid bundles KaTeX's code but a browser would load its stylesheet
         // separately; without it every formula is measured in the diagram's body
         // font instead of the bundled KaTeX faces.
-        themeCSS: themeCSS ? `${KATEX_FONT_CSS}\n${themeCSS}` : KATEX_FONT_CSS,
+        //
+        // Only when there is a formula to typeset: the rules are ~170 of them,
+        // and every element measured is matched against every rule, which made
+        // all renders 5-10x slower whether or not they contained math.
+        themeCSS: [hasMath(definition) && KATEX_FONT_CSS, themeCSS]
+          .filter(Boolean)
+          .join('\n'),
         // Defaults to mermaid's own htmlLabels. A per-diagram value inside
         // mermaidConfig still wins, so callers can mix.
         htmlLabels,

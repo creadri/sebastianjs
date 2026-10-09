@@ -15,6 +15,15 @@ const textOf = (svg) =>
 describe('KaTeX math labels', () => {
   // jsdom has no window.MathMLElement, so mermaid's own support check fails and
   // it replaces every formula with this sentence unless forceLegacyMathML is on.
+  // The stylesheet is ~170 rules, matched against every element measured; on
+  // every render it made diagrams without math 5-10x slower.
+  it('adds katex.css only to a diagram that has a formula', async () => {
+    expect(await render(MATH)).toContain('.katex .mathnormal');
+    const plain = await render('graph LR\n  A["costs $5"] --> B', { themeCSS: '.mine { fill: red }' });
+    expect(plain).not.toContain('.katex .mathnormal');
+    expect(plain).toContain('.mine');
+  });
+
   it('renders the formula rather than mermaid\'s unsupported-environment notice', async () => {
     const svg = await render(MATH);
     expect(svg).not.toContain('MathML is unsupported');
@@ -32,7 +41,9 @@ describe('KaTeX math labels', () => {
   // Without katex.css the formula is measured in the diagram's body font at the
   // body size, which is neither the right family nor the right size.
   it('measures the formula in the bundled KaTeX faces', async () => {
-    const svg = await render(MATH, { portable: true });
+    // The classic theme, for its 16px body text: mermaid 12's flowchart theme
+    // sets 14px, which would make this 16.94px.
+    const svg = await render(MATH, { portable: true, theme: 'default' });
     const group = svg.match(/<g class="katex"[^>]*>[\s\S]*?<\/g>/)[0];
     expect(group).toContain('KaTeX_Math');
     expect(group).toContain('KaTeX_Main');

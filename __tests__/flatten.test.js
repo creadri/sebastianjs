@@ -23,6 +23,10 @@ const skeleton = (svg) => [
   ...(svg.match(/viewBox="[^"]*"/g) || []),
 ].join('\n');
 
+// The arithmetic below is at 16px, the classic theme's body size. mermaid 12
+// gave flowcharts a theme of their own (redux-color) at 14px.
+const CLASSIC = { theme: 'default' };
+
 describe('flattenLabels', () => {
   it('leaves no foreignObject behind', async () => {
     const svg = await render('graph TD; A[Hello]-->B[World];', { flattenLabels: true });
@@ -53,7 +57,7 @@ describe('flattenLabels', () => {
   });
 
   it('puts each line box on its own baseline', async () => {
-    const svg = await render('graph TD; A["line one<br/>line two"];', { flattenLabels: true });
+    const svg = await render('graph TD; A["line one<br/>line two"];', { ...CLASSIC, flattenLabels: true });
     const [label] = texts(parseXml(svg));
     const [first, second] = lines(label);
     // line-height 1.5 at 16px is 24px; Open Sans has a 17px ascent and a 5px
@@ -79,15 +83,18 @@ describe('flattenLabels', () => {
   });
 
   it('keeps markdown emphasis as styled text, not as literal markup', async () => {
-    const svg = await render('graph TD; A["plain **bold** and *italic*"];', { flattenLabels: true });
+    // A markdown string: since mermaid 12 a plain "..." label keeps its
+    // asterisks, in Chrome as here. Short enough to stay on one line inside
+    // mermaid 12's 120px wrapping width.
+    const svg = await render('graph TD; A["`a **bold** b *italic*`"];', { flattenLabels: true });
     const [label] = texts(parseXml(svg));
     const runs = Array.from(label.getElementsByTagName('tspan'))
       .filter((t) => !t.hasAttribute('y'));
     expect(runs.find((r) => r.textContent === 'bold')?.getAttribute('font-weight')).toBe('700');
     expect(runs.find((r) => r.textContent === 'italic')?.getAttribute('font-style')).toBe('italic');
     // The spaces between runs sit on a <tspan> boundary, where SVG's default
-    // whitespace handling would drop them and give "plainbold anditalic".
-    expect(label.textContent).toBe('plain bold and italic');
+    // whitespace handling would drop them and give "abold bitalic".
+    expect(label.textContent).toBe('a bold b italic');
   });
 
   it('keeps raw HTML in a label as real markup', async () => {
@@ -119,12 +126,13 @@ describe('flattenLabels', () => {
   const images = (doc) => Array.from(doc.getElementsByTagName('image'));
 
   it('turns an image label into an <image>', async () => {
-    const svg = await render(`graph TD; A["<img src='${PNG}' />"];`, { flattenLabels: true });
+    const svg = await render(`graph TD; A["<img src='${PNG}' />"];`, { ...CLASSIC, flattenLabels: true });
     const doc = parseXml(svg);
     expect(doc.getElementsByTagName('foreignObject')).toHaveLength(0);
     const [image] = images(doc);
-    // mermaid pins an image-only label to fontSize * 5 and the label box is
-    // sized from it, so the image fills the box it was measured into.
+    // mermaid pins an image-only label to fontSize * 5. Since mermaid 12 the
+    // label box is at least 120px wide, but the image is display:flex and so
+    // block-level: text-align leaves it at the left, where Chrome draws it.
     expect(image.getAttribute('href')).toBe(PNG);
     expect(Number(image.getAttribute('width'))).toBe(80);
     expect(Number(image.getAttribute('height'))).toBe(80);
@@ -133,7 +141,7 @@ describe('flattenLabels', () => {
   });
 
   it('sits an image on the baseline of the text beside it', async () => {
-    const svg = await render(`graph TD; A["<img src='${PNG}' /> caption"];`, { flattenLabels: true });
+    const svg = await render(`graph TD; A["<img src='${PNG}' /> caption"];`, { ...CLASSIC, flattenLabels: true });
     const doc = parseXml(svg);
     const [image] = images(doc);
     const [line] = lines(texts(doc)[0]);
@@ -154,7 +162,7 @@ describe('flattenLabels', () => {
     // the box: at 16px, -0.125em is 2px below the baseline.
     const svg = await render(
       `graph TD; A["before <img src='${PNG}' style='vertical-align:-0.125em' /> after"];`,
-      { flattenLabels: true }
+      { ...CLASSIC, flattenLabels: true }
     );
     const [image] = images(parseXml(svg));
     expect(Number(image.getAttribute('y'))).toBeCloseTo(4, 4);

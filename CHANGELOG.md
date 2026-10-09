@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **mermaid 11.9.0 → 12.0.0, following `@mermaid-js/mermaid-cli` 11.9.0 →
+  12.0.0.** A major, and it changes what a default render looks like:
+  flowchart, sequence, class, state, ER, requirement and the new usecase and
+  venn diagrams carry their own `theme: 'redux-color'` and `look: 'neo'`
+  (flowcharts get white nodes, `#28253D` text at 14px, 2px strokes and a drop
+  shadow), flowchart labels wrap at 120px and nodes are at least 120px wide, and the
+  root `layout` default is `elk`. `render()` does not override any of it, so
+  output follows mermaid and mermaid-cli. Passing `theme` still wins over the
+  per-diagram default, so `{ theme: 'default' }` gets the classic palette back.
+  Plain `"..."` labels no longer parse markdown; only `` "`...`" `` strings do.
+  KaTeX is unchanged at 0.16.47, so the vendored faces and CSS stay as they were.
+
+### Fixed
+- **Renders without math are 4-7x faster again.** KaTeX support added its
+  ~170-rule font stylesheet to every diagram, and every element measured is
+  matched against every rule, so all renders paid for it: a flowchart went
+  from 186ms to 952ms. It is now added only when the definition has a
+  `$$...$$` formula, which is the same test mermaid uses to decide whether to
+  run KaTeX at all.
+- **The deviation gate covers every diagram type mermaid-cli renders.** The
+  type detection read `C4Context` as nothing (no digits in its pattern) and
+  then took the next line's `title`, and read `stateDiagram-v2` as
+  `stateDiagram-`, so neither was ever measured whatever the allow-list said.
+  Keywords are now matched with digits and without a `-beta` suffix, and the
+  list names every type in the corpus. sankey takes node ids from a counter
+  that outlives each render -- mmdc starts at `node-1`, our long-lived renderer
+  was at `node-14` by the third sankey -- so those ids are matched by document
+  order instead.
+- **The deviation gate measured nothing and reported zero.** Two separate
+  changes each emptied it on their own, and the summary read the same as a
+  perfect run. mermaid-cli 12 removed `-w`/`-H`, so every mmdc call exited
+  with "unknown option" and all 292 samples were recorded as errors, which
+  never reach the averages; the viewport now goes in through puppeteer's
+  `defaultViewport`, which gantt is sensitive to. And mermaid 12 prefixes node
+  ids with the root `<svg>`'s id -- `my-svg-flowchart-A-0` from mmdc,
+  `sebastianjs-1-flowchart-A-0` from us -- so no node matched across
+  renderers; the suite now strips that prefix before lining nodes up. The
+  summary also reports `erroredCount` and `unmatchedCount`, so a run that
+  compares nothing can no longer look clean.
+- **An image-only label is drawn at the left of its box, as in Chrome.**
+  mermaid sets `display: flex` on label images, which makes them block-level,
+  and `text-align` does not move a block. `flattenLabels` centred the image
+  anyway; that was invisible while the box was exactly as wide as the image,
+  and showed as a 20px shift once mermaid 12's 120px minimum width made the
+  box wider than an 80px image.
+
 ---
 
 ## [0.4.0] - 2026-09-01

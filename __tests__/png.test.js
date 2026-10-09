@@ -53,8 +53,9 @@ describe('renderPng', () => {
     // silent: a diagram of empty boxes.
     const wide = await renderPng('graph TD; A[A label long enough to be wider than the arrow];');
     const narrow = await renderPng('graph TD; A[x];');
-    // The label drove the node's width, so it drove the raster's.
-    expect(wide.width).toBeGreaterThan(narrow.width * 2);
+    // The label drove the node's size, so it drove the raster's. Since mermaid
+    // 12 flowchart labels wrap at 120px, so a long one grows the node downwards.
+    expect(wide.height).toBeGreaterThan(narrow.height * 1.5);
   });
 
   it('rasterizes outlined text with no font resolution at all', async () => {

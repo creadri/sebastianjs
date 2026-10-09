@@ -47,8 +47,9 @@ sebastianjs input.mmd -o output.svg -p
 # PNG. An output path ending in .png is rasterized.
 sebastianjs input.mmd -o output.png --scale 2 --background white
 
-# Set the viewport the diagram is laid out on. Like mermaid-cli's -w/-H these
-# are layout hints; the emitted SVG still sizes itself from its own bounding box.
+# Set the viewport the diagram is laid out on. Like the page mermaid-cli renders
+# in, these are layout hints; the emitted SVG still sizes itself from its own
+# bounding box.
 sebastianjs input.mmd -o out.svg -W 1200 -H 700
 ```
 
@@ -170,9 +171,9 @@ Thanks for the fonts under `fonts/` with their licenses:
 <!-- BENCHMARK_START -->
 ## Benchmark
 
-_Last updated: 2026-09-02T08:28:55.741Z_ · Node v22.23.2
+_Last updated: 2026-10-09T12:52:50.990Z_ · Node v22.23.2
 
-Rendering 228 sample diagrams from `samples/mermaid-demos`, every renderer on
+Rendering 292 sample diagrams from `samples/mermaid-demos`, every renderer on
 the same mermaid config (Open Sans, default HTML labels). Regenerate with
 `npm run benchmark`.
 
@@ -187,18 +188,18 @@ headless Chromium for each invocation. That process startup is most of the gap.
 
 Not every sample parses: SebastianJS failed on 5 in every form, mermaid-cli failed on 3. Only successful renders are timed.
 
-SebastianJS is **35x faster** per diagram, and **20x** even counting the rasterizer.
+SebastianJS is **10x faster** per diagram, and **6x** even counting the rasterizer.
 
 ### Summary
 
 | Metric | sebastianjs SVG | sebastianjs traced | sebastianjs PNG | mermaid-cli |
 | --- | --- | --- | --- | --- |
-| Samples | 228 | 228 | 228 | 228 |
-| Successful | 223 | 223 | 223 | 225 |
-| Avg ms | 54.58 | 89.91 | 96.64 | 1911.68 |
-| Total ms | 12171.00 | 20050.00 | 21550.00 | 430127.00 |
-| Min ms | 3.00 | 4.00 | 8.00 | 1523.00 |
-| Max ms | 383.00 | 618.00 | 641.00 | 2370.00 |
+| Samples | 292 | 292 | 292 | 292 |
+| Successful | 287 | 287 | 287 | 289 |
+| Avg ms | 116.25 | 200.85 | 178.33 | 1123.60 |
+| Total ms | 33364.00 | 57644.00 | 51180.00 | 324720.00 |
+| Min ms | 7.00 | 7.00 | 10.00 | 814.00 |
+| Max ms | 2613.00 | 4851.00 | 3764.00 | 1630.00 |
 
 ### Average render time
 
@@ -206,7 +207,7 @@ SebastianJS is **35x faster** per diagram, and **20x** even counting the rasteri
 xychart-beta
   title "Average Render Time (ms)"
   x-axis ["SVG", "traced", "PNG", "mermaid-cli"]
-  bar [54.58, 89.91, 96.64, 1911.68]
+  bar [116.25, 200.85, 178.33, 1123.60]
 ```
 
 <!-- BENCHMARK_END -->
@@ -233,6 +234,7 @@ To move to a newer mermaid, upgrade mermaid-cli and follow it:
 npm install -D @mermaid-js/mermaid-cli@latest
 npm run sync:mermaid      # pin mermaid to whatever that release locks
 npm install
+npm run vendor:katex      # only if that moved node_modules/katex
 npm run fetch:samples     # refresh the corpus at the matching tag
 npm test && npm run deviation
 ```

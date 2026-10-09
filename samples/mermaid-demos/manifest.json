@@ -1,7 +1,7 @@
 {
-  "mermaidVersion": "11.9.0",
-  "ref": "mermaid@11.9.0",
-  "fetchedAt": "2026-08-31T22:02:33.974Z",
+  "mermaidVersion": "12.0.0",
+  "ref": "mermaid@12.0.0",
+  "fetchedAt": "2026-10-09T11:35:52.160Z",
   "samples": [
     {
       "source": "architecture.html",
@@ -209,14 +209,54 @@
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__12.mmd"
     },
     {
+      "source": "classchart.html",
+      "index": 13,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__13.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 14,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__14.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 15,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__15.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 16,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__16.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 17,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__17.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 18,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__18.mmd"
+    },
+    {
+      "source": "classchart.html",
+      "index": 19,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/classchart__19.mmd"
+    },
+    {
       "source": "dataflowchart.html",
       "index": 1,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/dataflowchart__1.mmd"
     },
     {
-      "source": "dataflowchart.html",
+      "source": "dev/architecture-randomize.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/dev/architecture-randomize__1.mmd"
+    },
+    {
+      "source": "dev/architecture-randomize.html",
       "index": 2,
-      "file": "/workspaces/sebastianjs/samples/mermaid-demos/dataflowchart__2.mmd"
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/dev/architecture-randomize__2.mmd"
     },
     {
       "source": "dev/example.html",
@@ -292,6 +332,11 @@
       "source": "error.html",
       "index": 4,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/error__4.mmd"
+    },
+    {
+      "source": "eventmodeling.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/eventmodeling__1.mmd"
     },
     {
       "source": "flowchart-elk.html",
@@ -614,6 +659,16 @@
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/flowchart__63.mmd"
     },
     {
+      "source": "flowchart_expanded_node_shapes.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/flowchart_expanded_node_shapes__1.mmd"
+    },
+    {
+      "source": "flowchart_expanded_node_shapes.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/flowchart_expanded_node_shapes__2.mmd"
+    },
+    {
       "source": "gantt.html",
       "index": 1,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/gantt__1.mmd"
@@ -839,6 +894,31 @@
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/info__2.mmd"
     },
     {
+      "source": "ishikawa.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/ishikawa__1.mmd"
+    },
+    {
+      "source": "ishikawa.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/ishikawa__2.mmd"
+    },
+    {
+      "source": "ishikawa.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/ishikawa__3.mmd"
+    },
+    {
+      "source": "ishikawa.html",
+      "index": 4,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/ishikawa__4.mmd"
+    },
+    {
+      "source": "ishikawa.html",
+      "index": 5,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/ishikawa__5.mmd"
+    },
+    {
       "source": "journey.html",
       "index": 1,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/journey__1.mmd"
@@ -929,6 +1009,46 @@
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/radar__6.mmd"
     },
     {
+      "source": "railroad.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__1.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__2.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__3.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 4,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__4.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 5,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__5.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 6,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__6.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 7,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__7.mmd"
+    },
+    {
+      "source": "railroad.html",
+      "index": 8,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/railroad__8.mmd"
+    },
+    {
       "source": "requirements.html",
       "index": 1,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/requirements__1.mmd"
@@ -947,6 +1067,11 @@
       "source": "sankey.html",
       "index": 2,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/sankey__2.mmd"
+    },
+    {
+      "source": "sankey.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/sankey__3.mmd"
     },
     {
       "source": "sequence.html",
@@ -1069,6 +1194,56 @@
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/timeline__2.mmd"
     },
     {
+      "source": "timeline.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/timeline__3.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__1.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__2.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__3.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 4,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__4.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 5,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__5.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 6,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__6.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 7,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__7.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 8,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__8.mmd"
+    },
+    {
+      "source": "treeView.html",
+      "index": 9,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/treeView__9.mmd"
+    },
+    {
       "source": "treemap.html",
       "index": 1,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/treemap__1.mmd"
@@ -1077,6 +1252,101 @@
       "source": "treemap.html",
       "index": 2,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/treemap__2.mmd"
+    },
+    {
+      "source": "usecase.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/usecase__1.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__1.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__2.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__3.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 4,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__4.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 5,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__5.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 6,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__6.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 7,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__7.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 8,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__8.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 9,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__9.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 10,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__10.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 11,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__11.mmd"
+    },
+    {
+      "source": "venn.html",
+      "index": 12,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/venn__12.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 1,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__1.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 2,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__2.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 3,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__3.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 4,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__4.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 5,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__5.mmd"
+    },
+    {
+      "source": "wardley.html",
+      "index": 6,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/wardley__6.mmd"
     },
     {
       "source": "xychart.html",
@@ -1132,6 +1402,56 @@
       "source": "xychart.html",
       "index": 11,
       "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__11.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 12,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__12.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 13,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__13.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 14,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__14.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 15,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__15.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 16,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__16.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 17,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__17.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 18,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__18.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 19,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__19.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 20,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__20.mmd"
+    },
+    {
+      "source": "xychart.html",
+      "index": 21,
+      "file": "/workspaces/sebastianjs/samples/mermaid-demos/xychart__21.mmd"
     },
     {
       "source": "zenuml.html",

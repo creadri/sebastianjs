@@ -5,6 +5,11 @@ afterAll(async () => { await dispose(); });
 
 const DIAGRAM = 'graph TD; A[Start]-->B{OK?}; B-- Yes -->C[Done];';
 
+// mermaid 12 gave flowcharts a theme of their own (redux-color). The colours
+// asserted below are the classic theme's, pinned so these tests check what the
+// passes do with a palette rather than which palette mermaid ships.
+const CLASSIC = { theme: 'default' };
+
 const parse = (svg) =>
   new JSDOM(svg, { contentType: 'image/svg+xml' }).window.document;
 
@@ -39,7 +44,7 @@ describe('inlineStyles', () => {
   });
 
   it('resolves a node rect to the fill and stroke its class carried', async () => {
-    const svg = await render(DIAGRAM, { inlineStyles: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, inlineStyles: true });
     const [rect] = parseWithoutCss(svg).querySelectorAll('rect.basic');
     expect(rect.getAttribute('fill')).toBe('#ECECFF');
     expect(rect.getAttribute('stroke')).toBe('#9370DB');
@@ -48,7 +53,7 @@ describe('inlineStyles', () => {
   it('writes lengths as bare numbers', async () => {
     // A CSS length carries a unit; an SVG Tiny attribute length does not, and a
     // renderer that rejects "1px" falls back to 1 rather than reading it.
-    const svg = await render(DIAGRAM, { inlineStyles: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, inlineStyles: true });
     const [rect] = parse(svg).querySelectorAll('rect.basic');
     expect(rect.getAttribute('stroke-width')).toBe('1');
   });
@@ -111,7 +116,7 @@ describe('bakeMarkers', () => {
   it('carries the paint the marker content used to inherit', async () => {
     // The content is copied out of the <marker> it was inheriting fill from, so
     // the fill has to come with it or the arrowhead draws black.
-    const svg = await render(DIAGRAM, { inlineStyles: true, bakeMarkers: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, inlineStyles: true, bakeMarkers: true });
     const [group] = baked(parseWithoutCss(svg));
     expect(group.getAttribute('fill')).toBe('#333333');
     expect(group.querySelector('path')).not.toBeNull();
@@ -173,7 +178,7 @@ describe('textAsPaths', () => {
   });
 
   it('keeps the paint the text carried', async () => {
-    const svg = await render(DIAGRAM, { portable: true, textAsPaths: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, portable: true, textAsPaths: true });
     const group = parseWithoutCss(svg).querySelector('g.nodeLabel');
     expect(group.getAttribute('fill')).toBe('#333');
   });
@@ -184,7 +189,7 @@ describe('textAsPaths', () => {
     // matches an element beats anything that element would otherwise inherit,
     // so glyphs carrying no paint of their own came out the colour of the box
     // behind them, outlined in its border colour.
-    const svg = await render(DIAGRAM, { portable: true, textAsPaths: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, portable: true, textAsPaths: true });
     const glyphs = [...parseWithoutCss(svg).querySelectorAll('g.nodeLabel > path')];
     expect(glyphs.length).toBeGreaterThan(0);
     for (const glyph of glyphs) {
@@ -224,7 +229,7 @@ describe('textAsPaths', () => {
 
 describe('portable', () => {
   it('turns on all three passes', async () => {
-    const svg = await render(DIAGRAM, { portable: true });
+    const svg = await render(DIAGRAM, { ...CLASSIC, portable: true });
     const doc = parseWithoutCss(svg);
     expect(svg).not.toContain('foreignObject');
     expect(doc.querySelector('rect.basic').getAttribute('fill')).toBe('#ECECFF');

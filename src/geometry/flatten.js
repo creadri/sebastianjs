@@ -168,7 +168,7 @@ function buildLabel(fo, host, layout) {
     for (const line of block.lines) {
       const top = lineTop;
       const baseline = top + baselineWithin(block, line, strut);
-      const lineLeft = anchorX - line.width * fraction;
+      const lineLeft = isBlockLevelBox(line) ? boxX : anchorX - line.width * fraction;
       lineTop += block.boxHeight;
 
       for (const segment of segmentsOf(line)) {
@@ -223,6 +223,21 @@ function buildLabel(fo, host, layout) {
 
   // Boxes first, so text overlapping one is never hidden behind it.
   return [...boxes, ...drawn];
+}
+
+/**
+ * True for a line holding nothing but a block-level replaced box. mermaid sets
+ * `display: flex` on every label image, which blockifies it, and text-align
+ * does not move a block: Chrome draws it at the left of the label. It only
+ * shows once the label is wider than the image, as mermaid 12's 120px
+ * minimum width makes an 80px image-only label.
+ */
+function isBlockLevelBox(line) {
+  if (line.runs.length !== 1 || line.runs[0].type !== 'box') return false;
+  const el = line.runs[0].item?.el;
+  if (!el || el.localName !== 'img') return false;
+  const display = (declaredProperty(el, 'display') || '').trim().toLowerCase();
+  return ['block', 'flex', 'grid', 'table', 'list-item', 'flow-root'].includes(display);
 }
 
 /**

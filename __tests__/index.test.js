@@ -56,7 +56,9 @@ describe('SebastianJS', () => {
     // failed outright rather than rendering badly.
     const svg = await render('mindmap\n  root\n    child1\n    child2\n');
     expect(svg).toContain('aria-roledescription="mindmap"');
-    expect(svg.match(/class="mindmap-node/g)).toHaveLength(4); // root + 2 + the group
+    // mermaid 12 classes each node "node mindmap-node …"; the group no longer
+    // carries the class.
+    expect(svg.match(/class="[^"]*\bmindmap-node\b/g)).toHaveLength(3); // root + 2
   });
 });
 
