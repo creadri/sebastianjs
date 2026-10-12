@@ -3,6 +3,7 @@ import {
   NORMALIZED_DEVIATION_THRESHOLD,
   POSITION_DEVIATION_THRESHOLD,
   VIEWBOX_WIDTH_REL_THRESHOLD,
+  VIEWBOX_DEVIATION_THRESHOLD,
   KNOWN_DEVIATIONS,
 } from '../scripts/deviation-suite.mjs';
 import { existsSync } from 'node:fs';
@@ -38,6 +39,8 @@ const MMDC = resolve('node_modules', '.bin', 'mmdc');
     // a size or layout regression.
     expect(summary.avgRaw).toBeLessThanOrEqual(POSITION_DEVIATION_THRESHOLD);
     expect(summary.viewBoxWidthRel).toBeLessThanOrEqual(VIEWBOX_WIDTH_REL_THRESHOLD);
+    // Diagrams with no node ids to line up are compared by their viewBox.
+    expect(summary.avgViewBoxOnly).toBeLessThanOrEqual(VIEWBOX_DEVIATION_THRESHOLD);
     // Shape-only, scale-invariant: weak on its own, useful alongside the above.
     expect(summary.avgNorm).toBeLessThanOrEqual(NORMALIZED_DEVIATION_THRESHOLD);
     // Any sample that regresses fails here. Samples with a known, documented

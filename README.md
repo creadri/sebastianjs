@@ -132,9 +132,11 @@ ForeignObjects are flattened by default.
   `\tag`, `\href` or the alignment environments.
 - **Line breaking implements a subset of UAX #14.** Labels wrap at spaces,
   hyphens, slashes, close punctuation and between CJK characters. Rare cases can land on a different line count than a browser.
-- **Not every diagram type is verified.** The parity suite covers flowchart,
-  sequence, class, state, ER and the other stable types; beta diagrams are
-  rendered but unmeasured.
+- **Some diagram types are verified more coarsely than others.** The parity
+  suite covers every type mermaid-cli renders. Where nodes carry ids
+  (flowchart, class, state, ER, block, C4, sankey, ...) each node's position
+  is compared; the rest (sequence, gantt, pie, gitGraph, xychart and most beta
+  types) are compared by the diagram's overall viewBox only.
 - **One diagram type does not render yet.** `zenuml` needs its plugin
   registered; mermaid-cli bundles it and we do not, so those two samples are
   ours to fix.

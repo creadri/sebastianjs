@@ -20,6 +20,12 @@ export const NORMALIZED_DEVIATION_THRESHOLD = 0.01;
 // far below anything a real regression would produce.
 export const POSITION_DEVIATION_THRESHOLD = 1;
 export const VIEWBOX_WIDTH_REL_THRESHOLD = 0.03;
+// For diagrams whose nodes cannot be lined up by id -- sequence, gantt, pie,
+// gitGraph, xychart and most beta types draw no id'd `.node` -- the diagram's
+// own viewBox is what is compared instead: the largest difference in its x, y,
+// width or height. The same 1px as positions. Measured across those samples,
+// half agree to within 0.01px.
+export const VIEWBOX_DEVIATION_THRESHOLD = 1;
 
 /**
  * Samples with a known, understood deviation. Listing them keeps the gate sharp:
@@ -606,7 +612,17 @@ async function main(options = {}) {
   // or no node ids line up reads as a clean zero. mermaid-cli 12 dropping -w
   // failed all 292 that way. Count them so the summary shows it.
   const errored = results.filter(r => r.error);
-  const unmatched = results.filter(r => !r.error && !allOk.includes(r));
+  // No node to line up, so the viewBox stands in for the positions.
+  const viewBoxDeviation = (r) => {
+    const d = r.sizeDev;
+    return d ? Math.max(d.vbXAbs, d.vbYAbs, d.vbWAbs, d.vbHAbs) : NaN;
+  };
+  const byViewBox = results.filter(r => !r.error && !allOk.includes(r) && Number.isFinite(viewBoxDeviation(r)));
+  for (const r of byViewBox) r.viewBoxDev = viewBoxDeviation(r);
+  const byViewBoxOk = byViewBox.filter(r => !isKnown(r));
+  const avgViewBoxDev = byViewBoxOk.reduce((a, r) => a + r.viewBoxDev, 0) / (byViewBoxOk.length || 1);
+  failures.push(...byViewBox.filter(r => r.viewBoxDev > VIEWBOX_DEVIATION_THRESHOLD));
+  const unmatched = results.filter(r => !r.error && !allOk.includes(r) && !byViewBox.includes(r));
 
   // Aggregates for size/viewBox deviations
   const widthAbsAvg = avg(ok.map(r => r.sizeDev?.widthAbs));
@@ -629,15 +645,19 @@ async function main(options = {}) {
     samplesProcessed: samples.length,
     compared: allOk.length,
     comparedExcludingKnown: ok.length,
-    knownDeviations: knownOk.map((r) => ({
+    comparedByViewBox: byViewBox.length,
+    knownDeviations: [...knownOk, ...byViewBox.filter(isKnown)].map((r) => ({
       file: relative(process.cwd(), r.file).split(sep).join('/'),
       raw: r.raw,
+      ...(r.viewBoxDev !== undefined ? { viewBoxDev: r.viewBoxDev } : {}),
     })),
     avgNormalizedDeviation: avgNorm,
     avgRawDeviation: avgRaw,
     avgRawTransCorrDeviation: avgRawTransCorr,
     thresholdNormalized: NORMALIZED_DEVIATION_THRESHOLD,
     thresholdRaw: POSITION_DEVIATION_THRESHOLD,
+    avgViewBoxOnlyDeviation: avgViewBoxDev,
+    thresholdViewBoxOnly: VIEWBOX_DEVIATION_THRESHOLD,
     avgWidthAbs: widthAbsAvg,
     avgHeightAbs: heightAbsAvg,
     avgWidthRel: widthRelAvg,
@@ -648,11 +668,11 @@ async function main(options = {}) {
     avgViewBoxHAbs: vbHAbsAvg,
     avgViewBoxWRel: vbWRelAvg,
     avgViewBoxHRel: vbHRelAvg,
-    failures: failures.slice(0,10),
+    failures: failures.slice(0,10).map(({ details, ...r }) => r),
     failuresCount: failures.length,
   };
   if (verbose) {
-    report.items = results.map(r => ({ file: r.file, count: r.count, raw: r.raw, rawTransCorr: r.rawTransCorr, norm: r.norm, sizeDev: r.sizeDev, details: r.details }));
+    report.items = results.map(r => ({ file: r.file, error: r.error, count: r.count, raw: r.raw, rawTransCorr: r.rawTransCorr, norm: r.norm, viewBoxDev: r.viewBoxDev, sizeDev: r.sizeDev, details: r.details }));
   }
   console.log(JSON.stringify(report, null, 2));
 
@@ -673,6 +693,8 @@ async function main(options = {}) {
     avgNorm,
     avgRaw,
     compared: allOk.length,
+    comparedByViewBox: byViewBox.length,
+    avgViewBoxOnly: avgViewBoxDev,
     samplesProcessed: samples.length,
     viewBoxWidthRel: vbWRelAvg,
     failuresCount: failures.length,

@@ -33,6 +33,14 @@ All notable changes to this project will be documented in this file.
   that outlives each render -- mmdc starts at `node-1`, our long-lived renderer
   was at `node-14` by the third sankey -- so those ids are matched by document
   order instead.
+
+  Being on the list was not the same as being measured, though: the suite
+  lines nodes up by id, and sequence, gantt, pie, gitGraph, xychart and most
+  beta types draw none, so 168 samples were silently left out. Those are now
+  compared by the diagram's own viewBox -- the largest difference in its x,
+  y, width or height, against the same 1px as positions
+  (`VIEWBOX_DEVIATION_THRESHOLD`) -- and reported as `comparedByViewBox` and
+  `avgViewBoxOnly`.
 - **The deviation gate measured nothing and reported zero.** Two separate
   changes each emptied it on their own, and the summary read the same as a
   perfect run. mermaid-cli 12 removed `-w`/`-H`, so every mmdc call exited
